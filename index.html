@@ -1113,7 +1113,7 @@ const SignalTab = ({
   cooldownRemain, sessionStopped, profitTarget, sessionPnL, lossLimit, maxTrades, sessionTrades,
   resetSession, signal, strategy, autoMode, running, connStatus, currentStake,
   toggleRunning, manualTrade, sessionWinRate, sessionWins, maxWinStreak, priceSpark, prices, symbol,
-  openContract
+  openContract, isBuying
 }) => (
   <div>
     {cooldownRemain > 0 && (
@@ -1213,10 +1213,10 @@ const SignalTab = ({
       {/* FIX #8: Manual buttons show Up/Down, but send CALL/PUT internally */}
       {!autoMode && running && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button className="btn btn-primary" style={{ flex: 1, background: 'var(--primary)' }} onClick={() => manualTrade('CALL')} disabled={connStatus !== 'connected' || !!openContract}>
+          <button className="btn btn-primary" style={{ flex: 1, background: 'var(--primary)' }} onClick={() => manualTrade('CALL')} disabled={connStatus !== 'connected' || isBuying}>
             ▲ Up
           </button>
-          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => manualTrade('PUT')} disabled={connStatus !== 'connected' || !!openContract}>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => manualTrade('PUT')} disabled={connStatus !== 'connected' || isBuying}>
             ▼ Down
           </button>
         </div>
@@ -1683,6 +1683,7 @@ const App = () => {
   const [sessionStopped, setSessionStopped] = useState(false);
   const [currentStake, setCurrentStake] = useState(1);
   const [martiStep, setMartiStep] = useState(0);
+  const [isBuying, setIsBuying] = useState(false); // FIX: reactive buying state for button UI
 
   // Refs for WebSocket callbacks (avoid stale closures)
   const wsRef = useRef(null);
@@ -1720,6 +1721,8 @@ const App = () => {
   const contractSubId = useRef(null);
   const tickSubId = useRef(null);
   const tokenRef = useRef(''); // FIX #6: keep token for reconnect re-auth
+  const isBuyingRef = useRef(false); // FIX: ref-based buying flag for button disable
+  const contractSafetyTimer = useRef(null); // FIX: safety timeout to clear stale contracts
 
   // Sync state to refs
   useEffect(() => { pricesRef.current = prices; }, [prices]);
@@ -1813,9 +1816,19 @@ const App = () => {
         currency: 'USD',
       },
     };
+    isBuyingRef.current = true; // FIX: set buying flag immediately
+    setIsBuying(true); // FIX: trigger re-render to disable buttons
     pendingBuyId.current = Date.now();
     wsSend(req);
     addLog(`Trade placed: ${dirLabel(direction)} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
+    // FIX: Safety timeout for buy — if no response in 15s, re-enable buttons
+    setTimeout(() => {
+      if (isBuyingRef.current && !openContract) {
+        isBuyingRef.current = false;
+        setIsBuying(false);
+        addLog('Buy timeout — no response, re-enabling buttons', 'warn');
+      }
+    }, 15000);
     if (soundOnRef.current) sounds.signal();
   }, [wsSend, addLog]);
 
@@ -1837,7 +1850,8 @@ const App = () => {
     if (sessionStoppedRef.current) return;
     if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return;
 
-    if (autoModeRef.current) {
+    // FIX: Don't place auto trade if there's already an open contract
+    if (autoModeRef.current && !isBuyingRef.current) {
       placeTrade(sig.direction);
     }
   }, [placeTrade]);
@@ -1848,7 +1862,9 @@ const App = () => {
     const c = data.proposal_open_contract;
     if (!c) return;
 
-    if (c.is_sold || c.status === 'sold') {
+    // FIX: Detect ALL terminal contract states — Deriv uses sold/won/lost + is_expired+is_settleable
+    const isTerminal = c.is_sold || c.status === 'sold' || c.status === 'won' || c.status === 'lost' || (c.is_expired && c.is_settleable);
+    if (isTerminal) {
       const pnl = parseFloat(c.profit) || 0;
       const won = pnl > 0;
       const tradeRecord = {
@@ -1867,6 +1883,9 @@ const App = () => {
       // FIX #2: dedup by contract_id + persist to localStorage
       setTrades(prev => addTradeDeduped(prev, tradeRecord));
       setOpenContract(null);
+      isBuyingRef.current = false; // FIX: clear buying flag on contract completion
+      setIsBuying(false); // FIX: re-enable buttons
+      if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
 
       if (contractSubId.current) {
         wsSend({ forget: contractSubId.current });
@@ -1971,6 +1990,24 @@ const App = () => {
         startTime: c.date_start || c.purchase_time || null,  // FIX #5: server epoch
         expiryTime: c.date_expiry || null,                    // FIX #5: server epoch
       });
+
+      // FIX: Safety timeout — if contract has an expiry, set a timer to force-clear
+      // after expiry + 30s buffer in case the sold/won/lost message is missed
+      if (c.date_expiry && !contractSafetyTimer.current) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const bufferMs = Math.max((c.date_expiry - nowSec + 30) * 1000, 10000); // min 10s
+        contractSafetyTimer.current = setTimeout(() => {
+          addLog('Safety timeout: clearing stale contract', 'warn');
+          setOpenContract(null);
+          isBuyingRef.current = false;
+          setIsBuying(false);
+          if (contractSubId.current) {
+            wsSend({ forget: contractSubId.current });
+            contractSubId.current = null;
+          }
+          contractSafetyTimer.current = null;
+        }, bufferMs);
+      }
     }
   }, [wsSend, addLog]);
 
@@ -1980,6 +2017,14 @@ const App = () => {
 
     if (data.error) {
       addLog(`API Error: ${data.error.message}`, 'error');
+      // FIX: If this is a buy error, clear the pending buy state so buttons re-enable
+      if (data.echo_req && data.echo_req.buy) {
+        isBuyingRef.current = false;
+        setIsBuying(false);
+        setOpenContract(null);
+        pendingBuyId.current = null;
+        addLog('Buy failed — buttons re-enabled', 'warn');
+      }
       return;
     }
 
@@ -2055,6 +2100,9 @@ const App = () => {
     ws.onclose = () => {
       setConnStatus('disconnected');
       setOpenContract(null);
+      isBuyingRef.current = false; // FIX: clear buying state on disconnect
+      setIsBuying(false);
+      if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
       tickSubId.current = null; // FIX #6: clear stale sub IDs
       contractSubId.current = null;
       if (pingRef.current) clearInterval(pingRef.current);
@@ -2110,6 +2158,7 @@ const App = () => {
       if (wsRef.current) wsRef.current.close();
       if (pingRef.current) clearInterval(pingRef.current);
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (contractSafetyTimer.current) clearTimeout(contractSafetyTimer.current);
     };
   }, []);
 
@@ -2159,6 +2208,7 @@ const App = () => {
   const manualTrade = (dir) => {
     if (connStatus !== 'connected') { addLog('Not connected', 'warn'); return; }
     if (!running) { addLog('Start bot first', 'warn'); return; }
+    if (isBuyingRef.current) { addLog('Trade already in progress', 'warn'); return; }
     placeTrade(dir);
   };
 
@@ -2203,7 +2253,7 @@ const App = () => {
           connStatus={connStatus} currentStake={currentStake} toggleRunning={toggleRunning}
           manualTrade={manualTrade} sessionWinRate={sessionWinRate} sessionWins={sessionWins}
           maxWinStreak={maxWinStreak} priceSpark={priceSpark} prices={prices} symbol={symbol}
-          openContract={openContract}
+          openContract={openContract} isBuying={isBuying}
         />}
         {tab === 'trades' && <TradesTab
           openContract={openContract} sessionTrades={sessionTrades}
