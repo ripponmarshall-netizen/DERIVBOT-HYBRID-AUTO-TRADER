@@ -1,9 +1,8 @@
 <!DOCTYPE html>
-
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>MarsBot by Marshall — V50 Optimised</title>
+    <title>MarsBot V3 by Marshall — V50 Optimised</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,1381 +12,1382 @@
     <script type="text/babel">
       const { useState, useRef, useCallback, useEffect } = React;
 
-  const DERIV_WS_URL    = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
-  const PING_INTERVAL_MS = 25000;
+      const DERIV_WS_URL    = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+      const PING_INTERVAL_MS = 25000;
 
-  const SYMBOLS = [
-    { value: "R_10",  label: "Volatility 10",  tag: "V10"  },
-    { value: "R_25",  label: "Volatility 25",  tag: "V25"  },
-    { value: "R_50",  label: "Volatility 50",  tag: "V50"  },
-    { value: "R_75",  label: "Volatility 75",  tag: "V75"  },
-    { value: "R_100", label: "Volatility 100", tag: "V100" },
-  ];
+      const SYMBOLS = [
+        { value: "R_10",  label: "Volatility 10",  tag: "V10"  },
+        { value: "R_25",  label: "Volatility 25",  tag: "V25"  },
+        { value: "R_50",  label: "Volatility 50",  tag: "V50"  },
+        { value: "R_75",  label: "Volatility 75",  tag: "V75"  },
+        { value: "R_100", label: "Volatility 100", tag: "V100" },
+      ];
 
-  const STRATEGIES = [
-    { value: "HYBRID", label: "Hybrid (5-Indicator + MACD Gate)", desc: "RSI · StochRSI · BB · EMA · MACD confluence. MACD crossover REQUIRED as confirmation gate. 3/5 min for auto." },
-    { value: "RSI",    label: "RSI + Trend + MACD Gate",           desc: "RSI oversold/overbought with 50-EMA trend filter. MACD direction must align." },
-    { value: "EMA",    label: "EMA Crossover + ATR + MACD Gate",   desc: "EMA crossover filtered by ATR spike guard and MACD histogram direction." },
-    { value: "BB",     label: "BB + StochRSI + MACD Gate",         desc: "Bollinger Band touch + StochRSI extreme, MACD histogram confirms." },
-    { value: "MACD",   label: "MACD Primary + RSI Confirm",        desc: "MACD crossover as primary signal, RSI level as confirmation." },
-  ];
+      const STRATEGIES = [
+        { value: "HYBRID", label: "Hybrid (5-Indicator + MACD Gate)", desc: "RSI · StochRSI · BB · EMA · MACD confluence. MACD crossover REQUIRED as confirmation gate. 3/5 min for auto." },
+        { value: "RSI",    label: "RSI + Trend + MACD Gate",           desc: "RSI oversold/overbought with 50-EMA trend filter. MACD direction must align." },
+        { value: "EMA",    label: "EMA Crossover + ATR + MACD Gate",   desc: "EMA crossover filtered by ATR spike guard and MACD histogram direction." },
+        { value: "BB",     label: "BB + StochRSI + MACD Gate",         desc: "Bollinger Band touch + StochRSI extreme, MACD histogram confirms." },
+        { value: "MACD",   label: "MACD Primary + RSI Confirm",        desc: "MACD crossover as primary signal, RSI level as confirmation." },
+      ];
 
-  const DURATIONS = [
-    { value: 1,  label: "1 min"  },
-    { value: 2,  label: "2 min"  },
-    { value: 5,  label: "5 min"  },
-    { value: 10, label: "10 min" },
-    { value: 15, label: "15 min" },
-  ];
+      const DURATIONS = [
+        { value: 1,  label: "1 min"  },
+        { value: 2,  label: "2 min"  },
+        { value: 5,  label: "5 min"  },
+        { value: 10, label: "10 min" },
+        { value: 15, label: "15 min" },
+      ];
 
-  // ─── V50 Strategy Config ──────────────────────────────────────────────────────
-  const STRAT_CONFIG = {
-    R_50: {
-      HYBRID: {
-        rsiPeriod: 10, rsiBuy: 30, rsiSell: 70,
-        stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 22, stochRsiSell: 78,
-        bbPeriod: 20, bbTouchPct: 0.15,
-        emaFast: 9, emaSlow: 21, emaTrend: 50,
-        macdFast: 12, macdSlow: 26, macdSignal: 9,
-        atrPeriod: 14, atrSpikeMultiplier: 2.2,
-        minStrengthAuto: 78, minStrengthManual: 65,
-        cooldownMs: 18000,
-      },
-      RSI:  { period: 10, buy: 28, sell: 72, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 68 },
-      EMA:  { fast: 8, slow: 21, atrPeriod: 14, atrSpikeMultiplier: 2.0, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 72 },
-      BB:   { period: 20, touchPct: 0.15, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 25, stochRsiSell: 75, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 70 },
-      MACD: { fast: 12, slow: 26, signal: 9, rsiPeriod: 10, rsiBuy: 50, minStrength: 72 },
-    },
-  };
-  const GENERIC_CONFIG = {
-    HYBRID: { rsiPeriod: 14, rsiBuy: 30, rsiSell: 70, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 20, stochRsiSell: 80, bbPeriod: 20, bbTouchPct: 0.15, emaFast: 9, emaSlow: 21, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, atrPeriod: 14, atrSpikeMultiplier: 2.0, minStrengthAuto: 75, minStrengthManual: 62, cooldownMs: 15000 },
-    RSI:  { period: 14, buy: 30, sell: 70, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 65 },
-    EMA:  { fast: 9, slow: 21, atrPeriod: 14, atrSpikeMultiplier: 2.0, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 70 },
-    BB:   { period: 20, touchPct: 0.15, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 20, stochRsiSell: 80, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 65 },
-    MACD: { fast: 12, slow: 26, signal: 9, rsiPeriod: 14, rsiBuy: 50, minStrength: 68 },
-  };
-  const getCfg = (symbol, strategy) => (STRAT_CONFIG[symbol] ?? GENERIC_CONFIG)[strategy] ?? GENERIC_CONFIG[strategy];
-
-  // ─── Indicator Math ───────────────────────────────────────────────────────────
-  const calcEMA = (prices, period) => {
-    if (prices.length < period) return null;
-    const k = 2 / (period + 1);
-    let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
-    for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
-    return ema;
-  };
-
-  const calcRSI = (prices, period = 14) => {
-    if (prices.length < period * 2 + 1) return null;
-    const slice = prices.slice(-(period * 2 + 1));
-    const changes = slice.map((p, i, a) => i === 0 ? 0 : p - a[i - 1]).slice(1);
-    let avgGain = changes.slice(0, period).filter(c => c > 0).reduce((a, b) => a + b, 0) / period;
-    let avgLoss = changes.slice(0, period).filter(c => c < 0).map(c => -c).reduce((a, b) => a + b, 0) / period;
-    for (let i = period; i < changes.length; i++) {
-      avgGain = (avgGain * (period - 1) + Math.max(0, changes[i])) / period;
-      avgLoss = (avgLoss * (period - 1) + Math.max(0, -changes[i])) / period;
-    }
-    if (avgLoss === 0) return 100;
-    return 100 - 100 / (1 + avgGain / avgLoss);
-  };
-
-  const calcStochRSI = (prices, rsiPeriod = 14, stochPeriod = 14, kPeriod = 3) => {
-    if (prices.length < rsiPeriod + stochPeriod + kPeriod + 4) return null;
-    const rsiSeries = [];
-    for (let i = rsiPeriod * 2; i < prices.length; i++) {
-      const r = calcRSI(prices.slice(0, i + 1), rsiPeriod);
-      if (r !== null) rsiSeries.push(r);
-    }
-    if (rsiSeries.length < stochPeriod + kPeriod) return null;
-    const stochSeries = [];
-    for (let i = stochPeriod - 1; i < rsiSeries.length; i++) {
-      const w = rsiSeries.slice(i - stochPeriod + 1, i + 1);
-      const lo = Math.min(...w), hi = Math.max(...w);
-      stochSeries.push(hi === lo ? 50 : ((rsiSeries[i] - lo) / (hi - lo)) * 100);
-    }
-    if (stochSeries.length < kPeriod) return null;
-    return stochSeries.slice(-kPeriod).reduce((a, b) => a + b, 0) / kPeriod;
-  };
-
-  const calcBB = (prices, period = 20) => {
-    if (prices.length < period) return null;
-    const slice = prices.slice(-period);
-    const mean = slice.reduce((a, b) => a + b, 0) / period;
-    const std = Math.sqrt(slice.map(p => (p - mean) ** 2).reduce((a, b) => a + b, 0) / period);
-    return { upper: mean + 2 * std, middle: mean, lower: mean - 2 * std, std };
-  };
-
-  // ─── MACD with proper EMA signal line ─────────────────────────────────────────
-  const calcMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
-    if (prices.length < slow + signalPeriod + 2) return null;
-    const macdSeries = [];
-    for (let i = slow - 1; i < prices.length; i++) {
-      const sub = prices.slice(0, i + 1);
-      const ef = calcEMA(sub, fast), es = calcEMA(sub, slow);
-      if (ef !== null && es !== null) macdSeries.push(ef - es);
-    }
-    if (macdSeries.length < signalPeriod + 1) return null;
-    const signalLine = calcEMA(macdSeries, signalPeriod);
-    const prevSignal = calcEMA(macdSeries.slice(0, -1), signalPeriod);
-    const macdLine = macdSeries[macdSeries.length - 1];
-    const prevMacd = macdSeries[macdSeries.length - 2];
-    return {
-      macd: macdLine, signal: signalLine,
-      prevMacd, prevSignal,
-      histogram: macdLine - signalLine,
-      crossUp:   prevMacd !== null && prevSignal !== null && prevMacd < prevSignal && macdLine > signalLine,
-      crossDown: prevMacd !== null && prevSignal !== null && prevMacd > prevSignal && macdLine < signalLine,
-      bullish:   macdLine > signalLine,  // histogram positive
-    };
-  };
-
-  const calcATR = (prices, period = 14) => {
-    if (prices.length < period + 1) return null;
-    const slice = prices.slice(-(period + 1));
-    const trs = slice.map((p, i, a) => i === 0 ? 0 : Math.abs(p - a[i - 1])).slice(1);
-    return trs.reduce((a, b) => a + b, 0) / period;
-  };
-
-  const calcATRAvg = (prices, period = 14, lookback = 50) => {
-    if (prices.length < period + lookback) return null;
-    const atrs = [];
-    for (let i = lookback; i >= 1; i--) {
-      const a = calcATR(prices.slice(0, prices.length - i + 1), period);
-      if (a !== null) atrs.push(a);
-    }
-    return atrs.length ? atrs.reduce((a, b) => a + b, 0) / atrs.length : null;
-  };
-
-  // ─── MACD GATE ────────────────────────────────────────────────────────────────
-  // Returns true if MACD confirms the given direction.
-  // For CALL: MACD crossover up OR histogram positive.
-  // For PUT:  MACD crossover down OR histogram negative.
-  // requireCross=true → only allows actual crossover events (stricter).
-  const macdGate = (prices, direction, cfg, requireCross = false) => {
-    const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
-    if (!m) return { pass: false, macd: null, reason: "MACD not ready" };
-    if (direction === "CALL") {
-      const pass = requireCross ? m.crossUp : (m.crossUp || m.bullish);
-      return { pass, macd: m, reason: pass ? (m.crossUp ? "MACD ↑ crossover" : "MACD histogram+") : "MACD bearish — blocked" };
-    } else {
-      const pass = requireCross ? m.crossDown : (m.crossDown || !m.bullish);
-      return { pass, macd: m, reason: pass ? (m.crossDown ? "MACD ↓ crossover" : "MACD histogram−") : "MACD bullish — blocked" };
-    }
-  };
-
-  // ─── Hybrid Signal Engine ─────────────────────────────────────────────────────
-  const computeHybrid = (prices, symbol = "R_50", execMode = "auto", macdRequired = true) => {
-    const cfg = getCfg(symbol, "HYBRID");
-    if (!cfg || prices.length < 80) return null;
-    const price = prices[prices.length - 1];
-
-    const rsi      = calcRSI(prices, cfg.rsiPeriod);
-    const stochRsi = calcStochRSI(prices, cfg.stochRsiPeriod, cfg.stochRsiPeriod, cfg.stochRsiK);
-    const bb       = calcBB(prices, cfg.bbPeriod);
-    const emaFast  = calcEMA(prices, cfg.emaFast);
-    const emaSlow  = calcEMA(prices, cfg.emaSlow);
-    const emaTrend = calcEMA(prices, cfg.emaTrend);
-    const atr      = calcATR(prices, cfg.atrPeriod);
-    const atrAvg   = calcATRAvg(prices, cfg.atrPeriod, 50);
-
-    if (!rsi || !bb || !emaFast || !emaSlow || !emaTrend) return null;
-
-    // ATR spike filter
-    if (atr && atrAvg && atr > atrAvg * cfg.atrSpikeMultiplier)
-      return { filtered: true, reason: `ATR spike (${atr.toFixed(4)} vs avg ${atrAvg.toFixed(4)})` };
-
-    const trendUp = price > emaTrend;
-
-    // 5 indicator votes
-    let rsiVote = 0, rsiScore = 0, rsiLabel = "";
-    if (rsi < cfg.rsiBuy)       { rsiVote = 1;  rsiScore = Math.min(100, 65 + (cfg.rsiBuy - rsi) * 3.5);  rsiLabel = `${rsi.toFixed(1)} oversold`; }
-    else if (rsi > cfg.rsiSell) { rsiVote = -1; rsiScore = Math.min(100, 65 + (rsi - cfg.rsiSell) * 3.5); rsiLabel = `${rsi.toFixed(1)} overbought`; }
-    else                        { rsiScore = Math.max(20, 50 - Math.abs(rsi - 50) * 1.2); rsiLabel = `${rsi.toFixed(1)} neutral`; }
-
-    let srsiVote = 0, srsiScore = 0, srsiLabel = "";
-    if (stochRsi !== null) {
-      if (stochRsi < cfg.stochRsiBuy)       { srsiVote = 1;  srsiScore = Math.min(100, 65 + (cfg.stochRsiBuy - stochRsi) * 2);  srsiLabel = `${stochRsi.toFixed(1)} oversold`; }
-      else if (stochRsi > cfg.stochRsiSell) { srsiVote = -1; srsiScore = Math.min(100, 65 + (stochRsi - cfg.stochRsiSell) * 2); srsiLabel = `${stochRsi.toFixed(1)} overbought`; }
-      else                                  { srsiScore = 30; srsiLabel = `${stochRsi.toFixed(1)} neutral`; }
-    }
-
-    const bbRange = bb.upper - bb.lower;
-    const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
-    let bbVote = 0, bbScore = 0, bbLabel = "";
-    if (bbPos < cfg.bbTouchPct)          { bbVote = 1;  bbScore = Math.min(100, 65 + (cfg.bbTouchPct - bbPos) * 280);          bbLabel = `${(bbPos*100).toFixed(0)}% near lower`; }
-    else if (bbPos > 1 - cfg.bbTouchPct) { bbVote = -1; bbScore = Math.min(100, 65 + (bbPos - (1-cfg.bbTouchPct)) * 280);      bbLabel = `${(bbPos*100).toFixed(0)}% near upper`; }
-    else                                 { bbScore = 38; bbLabel = `${(bbPos*100).toFixed(0)}% mid band`; }
-
-    const sep = Math.abs(emaFast - emaSlow) / (Math.abs(emaSlow) * 0.001 + 1e-6);
-    const emaVote  = emaFast > emaSlow ? 1 : -1;
-    const emaScore = Math.min(100, 58 + Math.min(sep * 20, 40));
-    const emaLabel = emaFast > emaSlow ? "Fast above slow" : "Fast below slow";
-
-    // MACD as 5th vote AND gate
-    const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
-    let macdVote = 0, macdScore = 50, macdLabel = "—";
-    if (m) {
-      if (m.crossUp)       { macdVote = 1;  macdScore = 88; macdLabel = "Bullish crossover ✓"; }
-      else if (m.crossDown){ macdVote = -1; macdScore = 88; macdLabel = "Bearish crossover ✓"; }
-      else                 { macdVote = m.bullish ? 1 : -1; macdScore = 55; macdLabel = m.bullish ? "Histogram +" : "Histogram −"; }
-    }
-
-    const allVotes  = [rsiVote, srsiVote, bbVote, emaVote, macdVote];
-    const callVotes = allVotes.filter(v => v === 1).length;
-    const putVotes  = allVotes.filter(v => v === -1).length;
-    const minVotes  = execMode === "auto" ? 3 : 2;
-    if (callVotes < minVotes && putVotes < minVotes) return null;
-
-    const direction = callVotes >= putVotes ? "CALL" : "PUT";
-    const dirMult   = direction === "CALL" ? 1 : -1;
-    const agreeCount = direction === "CALL" ? callVotes : putVotes;
-    const allAgree  = agreeCount === 5;
-
-    // Trend filter
-    if (direction === "CALL" && !trendUp) return null;
-    if (direction === "PUT"  && trendUp)  return null;
-
-    // ─── MACD GATE: HARD BLOCK if enabled ────────────────────────────────────
-    let macdGateInfo = null;
-    if (macdRequired && m) {
-      const gatePass = direction === "CALL" ? (m.bullish || m.crossUp) : (!m.bullish || m.crossDown);
-      if (!gatePass) {
-        return { filtered: true, reason: `MACD gate blocked (${direction}: ${m.bullish ? "histogram+" : "histogram−"})` };
-      }
-      macdGateInfo = direction === "CALL"
-        ? (m.crossUp ? "MACD crossover ↑ ✓" : "MACD histogram+ ✓")
-        : (m.crossDown ? "MACD crossover ↓ ✓" : "MACD histogram− ✓");
-    }
-
-    const W = { rsi: 0.22, srsi: 0.22, bb: 0.18, ema: 0.20, macd: 0.18 };
-    const votes  = { rsi: rsiVote, srsi: srsiVote, bb: bbVote, ema: emaVote, macd: macdVote };
-    const scores = { rsi: rsiScore, srsi: srsiScore, bb: bbScore, ema: emaScore, macd: macdScore };
-    let wSum = 0, wTotal = 0;
-    for (const key of Object.keys(W)) {
-      const v = votes[key], s = scores[key], w = W[key];
-      if (v === dirMult) { wSum += s * w; wTotal += w; }
-      else if (v === 0)  { wSum += s * w * 0.15; wTotal += w * 0.15; }
-      else               { wSum += s * w * 0.05; wTotal += w * 0.3; }
-    }
-    const rawStr  = wTotal > 0 ? wSum / wTotal : 0;
-    const bonus   = allAgree ? 8 : agreeCount === 4 ? 4 : 0;
-    const strength = Math.min(100, Math.round(rawStr + bonus));
-    const minStr  = execMode === "auto" ? cfg.minStrengthAuto : cfg.minStrengthManual;
-    if (strength < minStr) return null;
-
-    return {
-      direction, strength, allAgree, agreeCount,
-      summary: `${agreeCount}/5 indicators align · ${macdGateInfo || "MACD gate off"}`,
-      trendBias: trendUp ? "Uptrend" : "Downtrend",
-      macdGate: macdGateInfo,
-      components: {
-        rsi:  { vote: rsiVote,  score: Math.round(rsiScore),  label: rsiLabel,  agrees: rsiVote  === dirMult },
-        srsi: { vote: srsiVote, score: Math.round(srsiScore), label: srsiLabel, agrees: srsiVote === dirMult },
-        bb:   { vote: bbVote,   score: Math.round(bbScore),   label: bbLabel,   agrees: bbVote   === dirMult },
-        ema:  { vote: emaVote,  score: Math.round(emaScore),  label: emaLabel,  agrees: emaVote  === dirMult },
-        macd: { vote: macdVote, score: Math.round(macdScore), label: macdLabel, agrees: macdVote === dirMult },
-      },
-    };
-  };
-
-  // ─── Single Strategy Engines (all with MACD gate) ────────────────────────────
-  const computeSingle = (strategy, prices, prevPrices, symbol = "R_50", macdRequired = true) => {
-    if (prices.length < 60) return null;
-    const cfg = getCfg(symbol, strategy);
-    if (!cfg) return null;
-
-    if (strategy === "RSI") {
-      const rsi      = calcRSI(prices, cfg.period);
-      const emaTrend = calcEMA(prices, cfg.emaTrend);
-      if (!rsi || !emaTrend) return null;
-      const price = prices[prices.length - 1];
-      const trendUp = price > emaTrend;
-      let sig = null;
-      if (rsi < cfg.buy && trendUp)   sig = { direction: "CALL", strength: Math.min(100, Math.round(cfg.minStrength + (cfg.buy - rsi) * 3)),   summary: `RSI ${rsi.toFixed(1)} oversold + uptrend`   };
-      if (rsi > cfg.sell && !trendUp) sig = { direction: "PUT",  strength: Math.min(100, Math.round(cfg.minStrength + (rsi - cfg.sell) * 3)), summary: `RSI ${rsi.toFixed(1)} overbought + downtrend` };
-      if (!sig) return null;
-      if (macdRequired) {
-        const gate = macdGate(prices, sig.direction, cfg);
-        if (!gate.pass) return { filtered: true, reason: gate.reason };
-        sig.macdGate = gate.reason;
-      }
-      return { ...sig, components: null };
-    }
-
-    if (strategy === "EMA") {
-      const eFast  = calcEMA(prices, cfg.fast);
-      const eSlow  = calcEMA(prices, cfg.slow);
-      const peFast = calcEMA(prevPrices, cfg.fast);
-      const peSlow = calcEMA(prevPrices, cfg.slow);
-      if (!eFast || !eSlow || !peFast || !peSlow) return null;
-      const atr = calcATR(prices, cfg.atrPeriod), atrAvg = calcATRAvg(prices, cfg.atrPeriod, 40);
-      if (atr && atrAvg && atr > atrAvg * cfg.atrSpikeMultiplier) return null;
-      let sig = null;
-      if (peFast < peSlow && eFast > eSlow) sig = { direction: "CALL", strength: cfg.minStrength, summary: "EMA bullish crossover (ATR OK)" };
-      if (peFast > peSlow && eFast < eSlow) sig = { direction: "PUT",  strength: cfg.minStrength, summary: "EMA bearish crossover (ATR OK)" };
-      if (!sig) return null;
-      if (macdRequired) {
-        const gate = macdGate(prices, sig.direction, cfg);
-        if (!gate.pass) return { filtered: true, reason: gate.reason };
-        sig.macdGate = gate.reason;
-      }
-      return { ...sig, components: null };
-    }
-
-    if (strategy === "BB") {
-      const price    = prices[prices.length - 1];
-      const bb       = calcBB(prices, cfg.period);
-      const stochRsi = calcStochRSI(prices, cfg.stochRsiPeriod, cfg.stochRsiPeriod, cfg.stochRsiK);
-      if (!bb) return null;
-      const bbRange = bb.upper - bb.lower;
-      const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
-      let sig = null;
-      if (bbPos <= cfg.touchPct && stochRsi !== null && stochRsi < cfg.stochRsiBuy)
-        sig = { direction: "CALL", strength: cfg.minStrength + Math.round((cfg.stochRsiBuy - stochRsi) * 0.8), summary: `Lower BB + StochRSI ${stochRsi.toFixed(1)}` };
-      if (bbPos >= 1 - cfg.touchPct && stochRsi !== null && stochRsi > cfg.stochRsiSell)
-        sig = { direction: "PUT",  strength: cfg.minStrength + Math.round((stochRsi - cfg.stochRsiSell) * 0.8), summary: `Upper BB + StochRSI ${stochRsi.toFixed(1)}` };
-      if (!sig) return null;
-      if (macdRequired) {
-        const gate = macdGate(prices, sig.direction, cfg);
-        if (!gate.pass) return { filtered: true, reason: gate.reason };
-        sig.macdGate = gate.reason;
-      }
-      return { ...sig, components: null };
-    }
-
-    if (strategy === "MACD") {
-      const m   = calcMACD(prices, cfg.fast, cfg.slow, cfg.signal);
-      const rsi = calcRSI(prices, cfg.rsiPeriod);
-      if (!m || !rsi) return null;
-      if (m.crossUp   && rsi > cfg.rsiBuy)           return { direction: "CALL", strength: cfg.minStrength + Math.round((rsi - cfg.rsiBuy) * 0.6),              summary: `MACD ↑ cross · RSI ${rsi.toFixed(1)} ✓`, macdGate: "Primary MACD crossover", components: null };
-      if (m.crossDown && rsi < (100 - cfg.rsiBuy))   return { direction: "PUT",  strength: cfg.minStrength + Math.round(((100 - cfg.rsiBuy) - rsi) * 0.6),      summary: `MACD ↓ cross · RSI ${rsi.toFixed(1)} ✓`, macdGate: "Primary MACD crossover", components: null };
-    }
-    return null;
-  };
-
-  const getSignal = (strategy, prices, prev, symbol, execMode, macdRequired) =>
-    strategy === "HYBRID"
-      ? computeHybrid(prices, symbol, execMode, macdRequired)
-      : computeSingle(strategy, prices, prev, symbol, macdRequired);
-
-  // ─── BACKTEST ENGINE ──────────────────────────────────────────────────────────
-  // Replays priceHistory through the signal engine with simulated "future" outcome.
-  // Outcome: if direction=CALL and price rose after N ticks → WIN, else LOSS.
-  // FIX: Deriv V-index ticks arrive ~every 1-2 sec (≈45 ticks/min).
-  //      Using duration * 45 gives a realistic lookahead window.
-  const runBacktest = (prices, strategy, symbol, duration, minStr, macdRequired) => {
-    const TICK_LOOKAHEAD = Math.max(10, duration * 45); // ~45 ticks per minute for Deriv volatility indices
-    const MIN_PRICES = 100;
-    if (prices.length < MIN_PRICES + TICK_LOOKAHEAD) {
-      return { error: `Need at least ${MIN_PRICES + TICK_LOOKAHEAD} price ticks for ${duration}-min backtest. Have ${prices.length}.` };
-    }
-
-    const results = [];
-    const cooldownTicks = 15;
-    let lastSignalAt = -cooldownTicks;
-
-    for (let i = MIN_PRICES; i < prices.length - TICK_LOOKAHEAD; i++) {
-      if (i - lastSignalAt < cooldownTicks) continue;
-
-      const slice = prices.slice(0, i + 1);
-      const prev  = prices.slice(0, i);
-      const signal = getSignal(strategy, slice, prev, symbol, "auto", macdRequired);
-
-      if (!signal || signal.filtered || signal.strength < minStr) continue;
-
-      const entryPrice  = prices[i];
-      const exitPrice   = prices[i + TICK_LOOKAHEAD];
-      const priceChange = exitPrice - entryPrice;
-      const won = signal.direction === "CALL" ? priceChange > 0 : priceChange < 0;
-
-      results.push({
-        index: i,
-        direction: signal.direction,
-        strength: signal.strength,
-        entry: entryPrice,
-        exit: exitPrice,
-        change: priceChange,
-        won,
-        macdGate: signal.macdGate || "—",
-        summary: signal.summary,
-      });
-      lastSignalAt = i;
-    }
-
-    if (results.length === 0) return { error: "No signals fired during backtest. Try lowering minStrength or switching strategy." };
-
-    const wins   = results.filter(r => r.won).length;
-    const losses = results.length - wins;
-    const winRate = (wins / results.length) * 100;
-    const callSigs = results.filter(r => r.direction === "CALL");
-    const putSigs  = results.filter(r => r.direction === "PUT");
-    const callWR = callSigs.length > 0 ? (callSigs.filter(r => r.won).length / callSigs.length * 100).toFixed(1) : "—";
-    const putWR  = putSigs.length  > 0 ? (putSigs.filter(r => r.won).length  / putSigs.length  * 100).toFixed(1) : "—";
-    const avgStrength = results.reduce((a, r) => a + r.strength, 0) / results.length;
-
-    // Streak analysis
-    let maxWinStreak = 0, maxLossStreak = 0, curWin = 0, curLoss = 0;
-    for (const r of results) {
-      if (r.won) { curWin++; curLoss = 0; maxWinStreak = Math.max(maxWinStreak, curWin); }
-      else       { curLoss++; curWin = 0; maxLossStreak = Math.max(maxLossStreak, curLoss); }
-    }
-
-    // Profit factor (assuming 85% payout, stake=1)
-    const PAYOUT_RATIO = 0.85;
-    const grossProfit = wins * PAYOUT_RATIO;
-    const grossLoss   = losses * 1;
-    const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : "∞";
-
-    // Rolling 10-signal win rate for chart data
-    const rolling = [];
-    for (let i = 9; i < results.length; i++) {
-      const w = results.slice(i - 9, i + 1).filter(r => r.won).length;
-      rolling.push({ idx: i, wr: (w / 10) * 100 });
-    }
-
-    return {
-      total: results.length,
-      wins, losses,
-      winRate: winRate.toFixed(1),
-      callWR, putWR,
-      avgStrength: avgStrength.toFixed(1),
-      maxWinStreak, maxLossStreak,
-      profitFactor,
-      rolling,
-      results: results.slice(0, 50),
-    };
-  };
-
-  // ─── Sparkline ────────────────────────────────────────────────────────────────
-  const Sparkline = ({ data, color = "#00ff88", width = 130, height = 38 }) => {
-    if (!data || data.length < 2) return <svg width={width} height={height} />;
-    const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-    const pts = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * height}`).join(" ");
-    return (
-      <svg width={width} height={height} style={{ overflow: "visible" }}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-    );
-  };
-
-  // Rolling win rate sparkline data
-  const WRSparkline = ({ data, width = 200, height = 40 }) => {
-    if (!data || data.length < 2) return <svg width={width} height={height}><text x="4" y="20" fill="#2a5438" fontSize="9">Need 10+ signals</text></svg>;
-    const vals = data.map(d => d.wr);
-    const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * width},${height - (v / 100) * height}`).join(" ");
-    const color = vals[vals.length - 1] >= 55 ? "#00ff88" : vals[vals.length - 1] >= 45 ? "#ffaa00" : "#ff3d5f";
-    return (
-      <svg width={width} height={height} style={{ overflow: "visible" }}>
-        <line x1="0" y1={height * 0.45} x2={width} y2={height * 0.45} stroke="#142a1c" strokeWidth="1" strokeDasharray="3,3" />
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
-      </svg>
-    );
-  };
-
-  const StrengthGauge = ({ value, size = 70 }) => {
-    const r = size / 2 - 7, cx = size / 2, cy = size / 2;
-    const toRad = d => (d * Math.PI) / 180;
-    const arcPath = (s, e) => {
-      const [sx, sy] = [cx + r * Math.cos(toRad(s)), cy + r * Math.sin(toRad(s))];
-      const [ex, ey] = [cx + r * Math.cos(toRad(e)), cy + r * Math.sin(toRad(e))];
-      return `M ${sx} ${sy} A ${r} ${r} 0 ${e - s > 180 ? 1 : 0} 1 ${ex} ${ey}`;
-    };
-    const color = value >= 80 ? "#00ff88" : value >= 65 ? "#ffaa00" : "#ff3d5f";
-    return (
-      <svg width={size} height={size}>
-        <path d={arcPath(135, 404.9)} fill="none" stroke="#162e22" strokeWidth="6" strokeLinecap="round" />
-        <path d={arcPath(135, Math.min(135 + (value / 100) * 270, 404.8))} fill="none" stroke={color} strokeWidth="6"
-          strokeLinecap="round" style={{ filter: `drop-shadow(0 0 5px ${color}90)` }} />
-        <text x={cx} y={cy + 5} textAnchor="middle" fill={color} fontSize="13" fontFamily="'Syne',sans-serif" fontWeight="800">{value}%</text>
-      </svg>
-    );
-  };
-
-  const Pill = ({ label, score, agrees, vote }) => {
-    const color  = agrees ? "#00ff88" : vote === 0 ? "#5a9e78" : "#ff3d5f";
-    const bg     = agrees ? "rgba(0,255,136,.09)" : vote === 0 ? "rgba(90,158,120,.06)" : "rgba(255,61,95,.09)";
-    const border = agrees ? "rgba(0,255,136,.3)"  : vote === 0 ? "rgba(90,158,120,.2)"  : "rgba(255,61,95,.3)";
-    return (
-      <div style={{ flex: 1, background: bg, border: `1px solid ${border}`, borderRadius: 4, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 8, color: "#5a9e78", letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
-          <span style={{ fontSize: 13, color, fontWeight: 700, lineHeight: 1 }}>{vote === 1 ? "↑" : vote === -1 ? "↓" : "–"}</span>
-        </div>
-        <div style={{ fontSize: 12, color, fontWeight: 700 }}>{score}%</div>
-        <div style={{ height: 3, background: "#162e22", borderRadius: 2 }}>
-          <div style={{ height: "100%", width: `${score}%`, background: color, borderRadius: 2, transition: "width .4s" }} />
-        </div>
-      </div>
-    );
-  };
-
-  // ─── Main Component ───────────────────────────────────────────────────────────
-  function MarsBot() {
-    const [tokenInput, setTokenInput]   = useState("");
-    const [connected, setConnected]     = useState(false);
-    const [authorized, setAuthorized]   = useState(false);
-    const [accountInfo, setAccountInfo] = useState(null);
-    const [balance, setBalance]         = useState(null);
-    const [wsStatus, setWsStatus]       = useState("disconnected");
-
-    const [symbol, setSymbol]               = useState("R_50");
-    const [strategy, setStrategy]           = useState("HYBRID");
-    const [stake, setStake]                 = useState("1");
-    // FIX: duration state default is 1, matching durationRef initial value below
-    const [duration, setDuration]           = useState(1);
-    const [maxDailyLoss, setMaxDailyLoss]   = useState("5");
-    const [maxTrades, setMaxTrades]         = useState("20");
-    const [minStrength, setMinStrength]     = useState("78");
-    const [martingale, setMartingale]       = useState(false);
-    const [martMul, setMartMul]             = useState("1.8");
-    const [execMode, setExecMode]           = useState("auto");
-    const [macdGateEnabled, setMacdGateEnabled] = useState(true);
-
-    const [botRunning, setBotRunning]       = useState(false);
-    const [currentPrice, setCurrentPrice]   = useState(null);
-    const [priceHistory, setPriceHistory]   = useState([]);
-    const [liveSignal, setLiveSignal]       = useState(null);
-    const [pendingSignal, setPendingSignal] = useState(null);
-    const [signals, setSignals]             = useState([]);
-    const [trades, setTrades]               = useState([]);
-    const [openContracts, setOpenContracts] = useState([]);
-    const [dailyPnL, setDailyPnL]           = useState(0);
-    const [todayTrades, setTodayTrades]     = useState(0);
-    const [consecLosses, setConsecLosses]   = useState(0);
-    const [activeTab, setActiveTab]         = useState("signal");
-    const [logs, setLogs]                   = useState([]);
-
-    const [btResult, setBtResult]     = useState(null);
-    const [btRunning, setBtRunning]   = useState(false);
-
-    const [wrLog, setWrLog] = useState([]);
-
-    const socketRef        = useRef(null);
-    const pricesRef        = useRef([]);
-    const prevRef          = useRef([]);
-    const runningRef       = useRef(false);
-    const pnlRef           = useRef(0);
-    const tradeCountRef    = useRef(0);
-    const consecLossRef    = useRef(0);
-    const initStakeRef     = useRef(1);
-    const currentStakeRef  = useRef(1);
-    const execModeRef      = useRef("auto");
-    const symbolRef        = useRef("R_50");
-    const strategyRef      = useRef("HYBRID");
-    // FIX: initialise to 1, matching the duration state default
-    const durationRef      = useRef(1);
-    const minStrRef        = useRef(78);
-    const accountInfoRef   = useRef(null);
-    const martingaleRef    = useRef(false);
-    const martMulRef       = useRef(1.8);
-    const maxLossRef       = useRef(10);
-    const maxTradesRef     = useRef(20);
-    const lastSignalRef    = useRef(0);
-    const tickCountRef     = useRef(0);
-    const pingTimerRef     = useRef(null);
-    const lastLossDirRef   = useRef(null);
-    const lastLossTimeRef  = useRef(0);
-    const macdGateRef      = useRef(true);
-    const subscriptionIds  = useRef({});
-    const pendingDirections = useRef({});
-    const handleMsgRef     = useRef(null);
-    const evalSignalRef    = useRef(null);
-    const sessionWinsRef   = useRef(0);
-    const sessionTotalRef  = useRef(0);
-    const sessionPnLRef    = useRef(0);
-
-    useEffect(() => { execModeRef.current   = execMode;                }, [execMode]);
-    useEffect(() => { symbolRef.current     = symbol;                  }, [symbol]);
-    useEffect(() => { strategyRef.current   = strategy;                }, [strategy]);
-    useEffect(() => { durationRef.current   = duration;                }, [duration]);
-    useEffect(() => { minStrRef.current     = parseFloat(minStrength); }, [minStrength]);
-    useEffect(() => { accountInfoRef.current = accountInfo;            }, [accountInfo]);
-    useEffect(() => { martingaleRef.current = martingale;              }, [martingale]);
-    useEffect(() => { martMulRef.current    = parseFloat(martMul);     }, [martMul]);
-    useEffect(() => { maxTradesRef.current  = parseInt(maxTrades, 10); }, [maxTrades]);
-    useEffect(() => { initStakeRef.current  = parseFloat(stake);       }, [stake]);
-    useEffect(() => { macdGateRef.current   = macdGateEnabled;         }, [macdGateEnabled]);
-    useEffect(() => {
-      const bal = accountInfoRef.current?.balance ?? 0;
-      maxLossRef.current = (bal * (parseFloat(maxDailyLoss) || 0)) / 100;
-    }, [maxDailyLoss, accountInfo]);
-
-    const addLog = useCallback((msg, type = "info") => {
-      const time = new Date().toLocaleTimeString("en-GB");
-      setLogs(prev => [{ time, msg, type, id: Date.now() + Math.random() }, ...prev].slice(0, 100));
-    }, []);
-
-    const placeTrade = useCallback((signal) => {
-      if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) { addLog("WebSocket not ready", "error"); return; }
-      const tradeStake = currentStakeRef.current;
-      pendingDirections.current["__next"] = signal.direction;
-      socketRef.current.send(JSON.stringify({
-        buy: 1, price: tradeStake,
-        parameters: {
-          amount: tradeStake, basis: "stake",
-          contract_type: signal.direction,
-          currency: accountInfoRef.current?.currency || "USD",
-          // Uses durationRef.current which is always synced to the selected duration
-          duration: durationRef.current, duration_unit: "m",
-          symbol: symbolRef.current,
+      // ─── V50 Strategy Config ──────────────────────────────────────────────────────
+      const STRAT_CONFIG = {
+        R_50: {
+          HYBRID: {
+            rsiPeriod: 10, rsiBuy: 30, rsiSell: 70,
+            stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 22, stochRsiSell: 78,
+            bbPeriod: 20, bbTouchPct: 0.15,
+            emaFast: 9, emaSlow: 21, emaTrend: 50,
+            macdFast: 12, macdSlow: 26, macdSignal: 9,
+            atrPeriod: 14, atrSpikeMultiplier: 2.2,
+            minStrengthAuto: 78, minStrengthManual: 65,
+            cooldownMs: 18000,
+          },
+          RSI:  { period: 10, buy: 28, sell: 72, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 68 },
+          EMA:  { fast: 8, slow: 21, atrPeriod: 14, atrSpikeMultiplier: 2.0, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 72 },
+          BB:   { period: 20, touchPct: 0.15, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 25, stochRsiSell: 75, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 70 },
+          MACD: { fast: 12, slow: 26, signal: 9, rsiPeriod: 10, rsiBuy: 50, minStrength: 72 },
         },
-      }));
-      setPendingSignal(null);
-      addLog(`Placing ${signal.direction} · ${durationRef.current}min · stake ${tradeStake.toFixed(2)} · str ${signal.strength}% · ${signal.macdGate || "no gate"}`, "success");
-    }, [addLog]);
+      };
+      const GENERIC_CONFIG = {
+        HYBRID: { rsiPeriod: 14, rsiBuy: 30, rsiSell: 70, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 20, stochRsiSell: 80, bbPeriod: 20, bbTouchPct: 0.15, emaFast: 9, emaSlow: 21, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, atrPeriod: 14, atrSpikeMultiplier: 2.0, minStrengthAuto: 75, minStrengthManual: 62, cooldownMs: 15000 },
+        RSI:  { period: 14, buy: 30, sell: 70, emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 65 },
+        EMA:  { fast: 9, slow: 21, atrPeriod: 14, atrSpikeMultiplier: 2.0, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 70 },
+        BB:   { period: 20, touchPct: 0.15, stochRsiPeriod: 14, stochRsiK: 3, stochRsiBuy: 20, stochRsiSell: 80, macdFast: 12, macdSlow: 26, macdSignal: 9, minStrength: 65 },
+        MACD: { fast: 12, slow: 26, signal: 9, rsiPeriod: 14, rsiBuy: 50, minStrength: 68 },
+      };
+      const getCfg = (symbol, strategy) => (STRAT_CONFIG[symbol] ?? GENERIC_CONFIG)[strategy] ?? GENERIC_CONFIG[strategy];
 
-    const dismissSignal = useCallback(() => { addLog("Signal dismissed", "warning"); setPendingSignal(null); }, [addLog]);
+      // ─── Indicator Math ───────────────────────────────────────────────────────────
+      const calcEMA = (prices, period) => {
+        if (prices.length < period) return null;
+        const k = 2 / (period + 1);
+        let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+        return ema;
+      };
 
-    const handleMsg = (data) => {
-      if (data.error) { addLog(`Deriv error: ${data.error.message}`, "error"); return; }
-
-      if (data.msg_type === "authorize") {
-        setAuthorized(true); setAccountInfo(data.authorize); accountInfoRef.current = data.authorize;
-        const pct = parseFloat(maxDailyLoss) || 5;
-        maxLossRef.current = (data.authorize.balance * pct) / 100;
-        setBalance(data.authorize.balance);
-        addLog(`Authorized — ${data.authorize.loginid} · ${data.authorize.currency} ${data.authorize.balance}`, "success");
-        socketRef.current?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-      }
-
-      if (data.msg_type === "balance") {
-        const nb = data.balance.balance;
-        setBalance(nb);
-        if (accountInfoRef.current) {
-          accountInfoRef.current = { ...accountInfoRef.current, balance: nb };
-          maxLossRef.current = (nb * (parseFloat(maxDailyLoss) || 5)) / 100;
+      const calcRSI = (prices, period = 14) => {
+        if (prices.length < period * 2 + 1) return null;
+        const slice = prices.slice(-(period * 2 + 1));
+        const changes = slice.map((p, i, a) => i === 0 ? 0 : p - a[i - 1]).slice(1);
+        let avgGain = changes.slice(0, period).filter(c => c > 0).reduce((a, b) => a + b, 0) / period;
+        let avgLoss = changes.slice(0, period).filter(c => c < 0).map(c => -c).reduce((a, b) => a + b, 0) / period;
+        for (let i = period; i < changes.length; i++) {
+          avgGain = (avgGain * (period - 1) + Math.max(0, changes[i])) / period;
+          avgLoss = (avgLoss * (period - 1) + Math.max(0, -changes[i])) / period;
         }
-      }
+        if (avgLoss === 0) return 100;
+        return 100 - 100 / (1 + avgGain / avgLoss);
+      };
 
-      if (data.msg_type === "tick") {
-        const price = parseFloat(data.tick.quote);
-        setCurrentPrice(price);
-        prevRef.current = [...pricesRef.current];
-        pricesRef.current = [...pricesRef.current, price].slice(-400);
-        tickCountRef.current += 1;
-        if (tickCountRef.current % 4 === 0) setPriceHistory([...pricesRef.current.slice(-80)]);
-        if (runningRef.current && pricesRef.current.length >= 80 && tickCountRef.current % 3 === 0)
-          evalSignalRef.current(price);
-      }
+      const calcStochRSI = (prices, rsiPeriod = 14, stochPeriod = 14, kPeriod = 3) => {
+        if (prices.length < rsiPeriod + stochPeriod + kPeriod + 4) return null;
+        const rsiSeries = [];
+        for (let i = rsiPeriod * 2; i < prices.length; i++) {
+          const r = calcRSI(prices.slice(0, i + 1), rsiPeriod);
+          if (r !== null) rsiSeries.push(r);
+        }
+        if (rsiSeries.length < stochPeriod + kPeriod) return null;
+        const stochSeries = [];
+        for (let i = stochPeriod - 1; i < rsiSeries.length; i++) {
+          const w = rsiSeries.slice(i - stochPeriod + 1, i + 1);
+          const lo = Math.min(...w), hi = Math.max(...w);
+          stochSeries.push(hi === lo ? 50 : ((rsiSeries[i] - lo) / (hi - lo)) * 100);
+        }
+        if (stochSeries.length < kPeriod) return null;
+        return stochSeries.slice(-kPeriod).reduce((a, b) => a + b, 0) / kPeriod;
+      };
 
-      if (data.msg_type === "buy") {
-        const contractId = data.buy.contract_id;
-        const direction = pendingDirections.current["__next"] || "CALL";
-        delete pendingDirections.current["__next"];
-        pendingDirections.current[contractId] = direction;
-        tradeCountRef.current += 1;
-        setTodayTrades(p => p + 1);
-        addLog(`Contract #${contractId} opened · stake ${data.buy.buy_price}`, "success");
-        setOpenContracts(p => [...p, { id: contractId, buyPrice: data.buy.buy_price, openTime: new Date().toLocaleTimeString(), symbol: symbolRef.current, direction }]);
-        socketRef.current?.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }));
-      }
+      const calcBB = (prices, period = 20) => {
+        if (prices.length < period) return null;
+        const slice = prices.slice(-period);
+        const mean = slice.reduce((a, b) => a + b, 0) / period;
+        const std = Math.sqrt(slice.map(p => (p - mean) ** 2).reduce((a, b) => a + b, 0) / period);
+        return { upper: mean + 2 * std, middle: mean, lower: mean - 2 * std, std };
+      };
 
-      if (data.msg_type === "proposal_open_contract") {
-        const contract = data.proposal_open_contract;
-        if (data.subscription && !subscriptionIds.current[contract.contract_id])
-          subscriptionIds.current[contract.contract_id] = data.subscription.id;
-        if (!contract.is_sold) return;
+      // ─── MACD with proper EMA signal line ─────────────────────────────────────────
+      const calcMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
+        if (prices.length < slow + signalPeriod + 2) return null;
+        const macdSeries = [];
+        for (let i = slow - 1; i < prices.length; i++) {
+          const sub = prices.slice(0, i + 1);
+          const ef = calcEMA(sub, fast), es = calcEMA(sub, slow);
+          if (ef !== null && es !== null) macdSeries.push(ef - es);
+        }
+        if (macdSeries.length < signalPeriod + 1) return null;
+        const signalLine = calcEMA(macdSeries, signalPeriod);
+        const prevSignal = calcEMA(macdSeries.slice(0, -1), signalPeriod);
+        const macdLine = macdSeries[macdSeries.length - 1];
+        const prevMacd = macdSeries[macdSeries.length - 2];
+        return {
+          macd: macdLine, signal: signalLine,
+          prevMacd, prevSignal,
+          histogram: macdLine - signalLine,
+          crossUp:   prevMacd !== null && prevSignal !== null && prevMacd < prevSignal && macdLine > signalLine,
+          crossDown: prevMacd !== null && prevSignal !== null && prevMacd > prevSignal && macdLine < signalLine,
+          bullish:   macdLine > signalLine,  // histogram positive
+        };
+      };
 
-        const contractId = contract.contract_id;
-        const direction = pendingDirections.current[contractId] || (contract.contract_type?.includes("CALL") ? "CALL" : "PUT");
-        delete pendingDirections.current[contractId];
+      const calcATR = (prices, period = 14) => {
+        if (prices.length < period + 1) return null;
+        const slice = prices.slice(-(period + 1));
+        const trs = slice.map((p, i, a) => i === 0 ? 0 : Math.abs(p - a[i - 1])).slice(1);
+        return trs.reduce((a, b) => a + b, 0) / period;
+      };
 
-        const subId = subscriptionIds.current[contractId];
-        if (subId) { socketRef.current?.send(JSON.stringify({ forget: subId })); delete subscriptionIds.current[contractId]; }
+      const calcATRAvg = (prices, period = 14, lookback = 50) => {
+        if (prices.length < period + lookback) return null;
+        const atrs = [];
+        for (let i = lookback; i >= 1; i--) {
+          const a = calcATR(prices.slice(0, prices.length - i + 1), period);
+          if (a !== null) atrs.push(a);
+        }
+        return atrs.length ? atrs.reduce((a, b) => a + b, 0) / atrs.length : null;
+      };
 
-        const profit = parseFloat(contract.profit);
-        pnlRef.current += profit;
-        setDailyPnL(p => p + profit);
-        setOpenContracts(p => p.filter(c => c.id !== contractId));
-
-        sessionTotalRef.current += 1;
-        sessionPnLRef.current += profit;
-        if (profit > 0) {
-          sessionWinsRef.current += 1;
-          consecLossRef.current = 0; setConsecLosses(0);
-          currentStakeRef.current = initStakeRef.current;
-          lastLossDirRef.current = null;
-          addLog(`✓ WON +${profit.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "success");
+      // ─── MACD GATE (NEW) ──────────────────────────────────────────────────────────
+      // Returns true if MACD confirms the given direction.
+      // For CALL: MACD crossover up OR histogram positive.
+      // For PUT:  MACD crossover down OR histogram negative.
+      // requireCross=true → only allows actual crossover events (stricter).
+      const macdGate = (prices, direction, cfg, requireCross = false) => {
+        const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
+        if (!m) return { pass: false, macd: null, reason: "MACD not ready" };
+        if (direction === "CALL") {
+          const pass = requireCross ? m.crossUp : (m.crossUp || m.bullish);
+          return { pass, macd: m, reason: pass ? (m.crossUp ? "MACD ↑ crossover" : "MACD histogram+") : "MACD bearish — blocked" };
         } else {
-          consecLossRef.current += 1; setConsecLosses(consecLossRef.current);
-          lastLossDirRef.current = direction; lastLossTimeRef.current = Date.now();
-          if (martingaleRef.current) {
-            const next = Math.min(currentStakeRef.current * martMulRef.current, (accountInfoRef.current?.balance ?? 100) * 0.04);
-            currentStakeRef.current = next;
-            addLog(`✗ LOST ${profit.toFixed(2)} · Martingale→${next.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "warning");
-          } else {
-            addLog(`✗ LOST ${profit.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "error");
+          const pass = requireCross ? m.crossDown : (m.crossDown || !m.bullish);
+          return { pass, macd: m, reason: pass ? (m.crossDown ? "MACD ↓ crossover" : "MACD histogram−") : "MACD bullish — blocked" };
+        }
+      };
+
+      // ─── Hybrid Signal Engine ─────────────────────────────────────────────────────
+      const computeHybrid = (prices, symbol = "R_50", execMode = "auto", macdRequired = true) => {
+        const cfg = getCfg(symbol, "HYBRID");
+        if (!cfg || prices.length < 80) return null;
+        const price = prices[prices.length - 1];
+
+        const rsi      = calcRSI(prices, cfg.rsiPeriod);
+        const stochRsi = calcStochRSI(prices, cfg.stochRsiPeriod, cfg.stochRsiPeriod, cfg.stochRsiK);
+        const bb       = calcBB(prices, cfg.bbPeriod);
+        const emaFast  = calcEMA(prices, cfg.emaFast);
+        const emaSlow  = calcEMA(prices, cfg.emaSlow);
+        const emaTrend = calcEMA(prices, cfg.emaTrend);
+        const atr      = calcATR(prices, cfg.atrPeriod);
+        const atrAvg   = calcATRAvg(prices, cfg.atrPeriod, 50);
+
+        if (!rsi || !bb || !emaFast || !emaSlow || !emaTrend) return null;
+
+        // ATR spike filter
+        if (atr && atrAvg && atr > atrAvg * cfg.atrSpikeMultiplier)
+          return { filtered: true, reason: `ATR spike (${atr.toFixed(4)} vs avg ${atrAvg.toFixed(4)})` };
+
+        const trendUp = price > emaTrend;
+
+        // 5 indicator votes
+        let rsiVote = 0, rsiScore = 0, rsiLabel = "";
+        if (rsi < cfg.rsiBuy)       { rsiVote = 1;  rsiScore = Math.min(100, 65 + (cfg.rsiBuy - rsi) * 3.5);  rsiLabel = `${rsi.toFixed(1)} oversold`; }
+        else if (rsi > cfg.rsiSell) { rsiVote = -1; rsiScore = Math.min(100, 65 + (rsi - cfg.rsiSell) * 3.5); rsiLabel = `${rsi.toFixed(1)} overbought`; }
+        else                        { rsiScore = Math.max(20, 50 - Math.abs(rsi - 50) * 1.2); rsiLabel = `${rsi.toFixed(1)} neutral`; }
+
+        let srsiVote = 0, srsiScore = 0, srsiLabel = "";
+        if (stochRsi !== null) {
+          if (stochRsi < cfg.stochRsiBuy)       { srsiVote = 1;  srsiScore = Math.min(100, 65 + (cfg.stochRsiBuy - stochRsi) * 2);  srsiLabel = `${stochRsi.toFixed(1)} oversold`; }
+          else if (stochRsi > cfg.stochRsiSell) { srsiVote = -1; srsiScore = Math.min(100, 65 + (stochRsi - cfg.stochRsiSell) * 2); srsiLabel = `${stochRsi.toFixed(1)} overbought`; }
+          else                                  { srsiScore = 30; srsiLabel = `${stochRsi.toFixed(1)} neutral`; }
+        }
+
+        const bbRange = bb.upper - bb.lower;
+        const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
+        let bbVote = 0, bbScore = 0, bbLabel = "";
+        if (bbPos < cfg.bbTouchPct)          { bbVote = 1;  bbScore = Math.min(100, 65 + (cfg.bbTouchPct - bbPos) * 280);          bbLabel = `${(bbPos*100).toFixed(0)}% near lower`; }
+        else if (bbPos > 1 - cfg.bbTouchPct) { bbVote = -1; bbScore = Math.min(100, 65 + (bbPos - (1-cfg.bbTouchPct)) * 280);      bbLabel = `${(bbPos*100).toFixed(0)}% near upper`; }
+        else                                 { bbScore = 38; bbLabel = `${(bbPos*100).toFixed(0)}% mid band`; }
+
+        const sep = Math.abs(emaFast - emaSlow) / (Math.abs(emaSlow) * 0.001 + 1e-6);
+        const emaVote  = emaFast > emaSlow ? 1 : -1;
+        const emaScore = Math.min(100, 58 + Math.min(sep * 20, 40));
+        const emaLabel = emaFast > emaSlow ? "Fast above slow" : "Fast below slow";
+
+        // MACD as 5th vote AND gate
+        const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
+        let macdVote = 0, macdScore = 50, macdLabel = "—";
+        if (m) {
+          if (m.crossUp)   { macdVote = 1;  macdScore = 88; macdLabel = "Bullish crossover ✓"; }
+          else if (m.crossDown){ macdVote = -1; macdScore = 88; macdLabel = "Bearish crossover ✓"; }
+          else             { macdVote = m.bullish ? 1 : -1; macdScore = 55; macdLabel = m.bullish ? "Histogram +" : "Histogram −"; }
+        }
+
+        const allVotes  = [rsiVote, srsiVote, bbVote, emaVote, macdVote];
+        const callVotes = allVotes.filter(v => v === 1).length;
+        const putVotes  = allVotes.filter(v => v === -1).length;
+        const minVotes  = execMode === "auto" ? 3 : 2;
+        if (callVotes < minVotes && putVotes < minVotes) return null;
+
+        const direction = callVotes >= putVotes ? "CALL" : "PUT";
+        const dirMult   = direction === "CALL" ? 1 : -1;
+        const agreeCount = direction === "CALL" ? callVotes : putVotes;
+        const allAgree  = agreeCount === 5;
+
+        // Trend filter
+        if (direction === "CALL" && !trendUp) return null;
+        if (direction === "PUT"  && trendUp)  return null;
+
+        // ─── MACD GATE: HARD BLOCK if enabled ────────────────────────────────────
+        let macdGateInfo = null;
+        if (macdRequired && m) {
+          const gatePass = direction === "CALL" ? (m.bullish || m.crossUp) : (!m.bullish || m.crossDown);
+          if (!gatePass) {
+            return { filtered: true, reason: `MACD gate blocked (${direction}: ${m.bullish ? "histogram+" : "histogram−"})` };
           }
+          macdGateInfo = direction === "CALL"
+            ? (m.crossUp ? "MACD crossover ↑ ✓" : "MACD histogram+ ✓")
+            : (m.crossDown ? "MACD crossover ↓ ✓" : "MACD histogram− ✓");
         }
 
-        if (sessionTotalRef.current % 5 === 0) {
-          const wr = ((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1);
-          setWrLog(p => [...p, { time: new Date().toLocaleTimeString("en-GB"), total: sessionTotalRef.current, wins: sessionWinsRef.current, wr, pnl: sessionPnLRef.current.toFixed(2) }].slice(-100));
+        const W = { rsi: 0.22, srsi: 0.22, bb: 0.18, ema: 0.20, macd: 0.18 };
+        const votes  = { rsi: rsiVote, srsi: srsiVote, bb: bbVote, ema: emaVote, macd: macdVote };
+        const scores = { rsi: rsiScore, srsi: srsiScore, bb: bbScore, ema: emaScore, macd: macdScore };
+        let wSum = 0, wTotal = 0;
+        for (const key of Object.keys(W)) {
+          const v = votes[key], s = scores[key], w = W[key];
+          if (v === dirMult) { wSum += s * w; wTotal += w; }
+          else if (v === 0)  { wSum += s * w * 0.15; wTotal += w * 0.15; }
+          else               { wSum += s * w * 0.05; wTotal += w * 0.3; }
+        }
+        const rawStr  = wTotal > 0 ? wSum / wTotal : 0;
+        const bonus   = allAgree ? 8 : agreeCount === 4 ? 4 : 0;
+        const strength = Math.min(100, Math.round(rawStr + bonus));
+        const minStr  = execMode === "auto" ? cfg.minStrengthAuto : cfg.minStrengthManual;
+        if (strength < minStr) return null;
+
+        return {
+          direction, strength, allAgree, agreeCount,
+          summary: `${agreeCount}/5 indicators align · ${macdGateInfo || "MACD gate off"}`,
+          trendBias: trendUp ? "Uptrend" : "Downtrend",
+          macdGate: macdGateInfo,
+          components: {
+            rsi:  { vote: rsiVote,  score: Math.round(rsiScore),  label: rsiLabel,  agrees: rsiVote  === dirMult },
+            srsi: { vote: srsiVote, score: Math.round(srsiScore), label: srsiLabel, agrees: srsiVote === dirMult },
+            bb:   { vote: bbVote,   score: Math.round(bbScore),   label: bbLabel,   agrees: bbVote   === dirMult },
+            ema:  { vote: emaVote,  score: Math.round(emaScore),  label: emaLabel,  agrees: emaVote  === dirMult },
+            macd: { vote: macdVote, score: Math.round(macdScore), label: macdLabel, agrees: macdVote === dirMult },
+          },
+        };
+      };
+
+      // ─── Single Strategy Engines (all with MACD gate) ────────────────────────────
+      const computeSingle = (strategy, prices, prevPrices, symbol = "R_50", macdRequired = true) => {
+        if (prices.length < 60) return null;
+        const cfg = getCfg(symbol, strategy);
+        if (!cfg) return null;
+
+        if (strategy === "RSI") {
+          const rsi      = calcRSI(prices, cfg.period);
+          const emaTrend = calcEMA(prices, cfg.emaTrend);
+          if (!rsi || !emaTrend) return null;
+          const price = prices[prices.length - 1];
+          const trendUp = price > emaTrend;
+          let sig = null;
+          if (rsi < cfg.buy && trendUp)  sig = { direction: "CALL", strength: Math.min(100, Math.round(cfg.minStrength + (cfg.buy - rsi) * 3)),  summary: `RSI ${rsi.toFixed(1)} oversold + uptrend`   };
+          if (rsi > cfg.sell && !trendUp) sig = { direction: "PUT",  strength: Math.min(100, Math.round(cfg.minStrength + (rsi - cfg.sell) * 3)), summary: `RSI ${rsi.toFixed(1)} overbought + downtrend` };
+          if (!sig) return null;
+          if (macdRequired) {
+            const gate = macdGate(prices, sig.direction, cfg);
+            if (!gate.pass) return { filtered: true, reason: gate.reason };
+            sig.macdGate = gate.reason;
+          }
+          return { ...sig, components: null };
         }
 
-        setTrades(p => [{
-          id: contractId, time: new Date().toLocaleTimeString(),
-          symbol: symbolRef.current, direction,
-          stake: parseFloat(contract.buy_price), profit, won: profit > 0,
-          payout: parseFloat(contract.sell_price || 0),
-        }, ...p].slice(0, 50));
-      }
-    };
+        if (strategy === "EMA") {
+          const eFast  = calcEMA(prices, cfg.fast);
+          const eSlow  = calcEMA(prices, cfg.slow);
+          const peFast = calcEMA(prevPrices, cfg.fast);
+          const peSlow = calcEMA(prevPrices, cfg.slow);
+          if (!eFast || !eSlow || !peFast || !peSlow) return null;
+          const atr = calcATR(prices, cfg.atrPeriod), atrAvg = calcATRAvg(prices, cfg.atrPeriod, 40);
+          if (atr && atrAvg && atr > atrAvg * cfg.atrSpikeMultiplier) return null;
+          let sig = null;
+          if (peFast < peSlow && eFast > eSlow) sig = { direction: "CALL", strength: cfg.minStrength, summary: "EMA bullish crossover (ATR OK)" };
+          if (peFast > peSlow && eFast < eSlow) sig = { direction: "PUT",  strength: cfg.minStrength, summary: "EMA bearish crossover (ATR OK)" };
+          if (!sig) return null;
+          if (macdRequired) {
+            const gate = macdGate(prices, sig.direction, cfg);
+            if (!gate.pass) return { filtered: true, reason: gate.reason };
+            sig.macdGate = gate.reason;
+          }
+          return { ...sig, components: null };
+        }
 
-    const evalSignal = (price) => {
-      if (pnlRef.current <= -maxLossRef.current)      { addLog("⚠ Daily loss limit hit — stopping", "warning"); setBotRunning(false); runningRef.current = false; return; }
-      if (tradeCountRef.current >= maxTradesRef.current) { addLog("⚠ Max trades reached — stopping", "warning"); setBotRunning(false); runningRef.current = false; return; }
-      if (consecLossRef.current >= 4) {
-        addLog("⚠ 4 consecutive losses — 60s cooldown", "warning");
-        consecLossRef.current = 0; setConsecLosses(0); runningRef.current = false;
-        setTimeout(() => { if (socketRef.current?.readyState === WebSocket.OPEN) { runningRef.current = true; addLog("▶ Resuming after cooldown", "info"); } }, 60000);
-        return;
-      }
+        if (strategy === "BB") {
+          const price    = prices[prices.length - 1];
+          const bb       = calcBB(prices, cfg.period);
+          const stochRsi = calcStochRSI(prices, cfg.stochRsiPeriod, cfg.stochRsiPeriod, cfg.stochRsiK);
+          if (!bb) return null;
+          const bbRange = bb.upper - bb.lower;
+          const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
+          let sig = null;
+          if (bbPos <= cfg.touchPct && stochRsi !== null && stochRsi < cfg.stochRsiBuy)
+            sig = { direction: "CALL", strength: cfg.minStrength + Math.round((cfg.stochRsiBuy - stochRsi) * 0.8), summary: `Lower BB + StochRSI ${stochRsi.toFixed(1)}` };
+          if (bbPos >= 1 - cfg.touchPct && stochRsi !== null && stochRsi > cfg.stochRsiSell)
+            sig = { direction: "PUT",  strength: cfg.minStrength + Math.round((stochRsi - cfg.stochRsiSell) * 0.8), summary: `Upper BB + StochRSI ${stochRsi.toFixed(1)}` };
+          if (!sig) return null;
+          if (macdRequired) {
+            const gate = macdGate(prices, sig.direction, cfg);
+            if (!gate.pass) return { filtered: true, reason: gate.reason };
+            sig.macdGate = gate.reason;
+          }
+          return { ...sig, components: null };
+        }
 
-      const prices = pricesRef.current;
-      const prev   = prevRef.current.length > 1 ? prevRef.current : prices.slice(0, -1);
-      const signal = getSignal(strategyRef.current, prices, prev, symbolRef.current, execModeRef.current, macdGateRef.current);
-
-      if (signal && signal.filtered) {
-        setLiveSignal(null);
-        if (signal.reason?.includes("MACD gate")) addLog(`MACD gate blocked: ${signal.reason}`, "warning");
-        return;
-      }
-
-      setLiveSignal(signal);
-      if (!signal || signal.strength < minStrRef.current) return;
-
-      const now = Date.now();
-      // FIX: use the active strategy's config for cooldown, not always HYBRID
-      const cfg = getCfg(symbolRef.current, strategyRef.current);
-      if (now - lastSignalRef.current < (cfg?.cooldownMs || 15000)) return;
-
-      if (lastLossDirRef.current && (now - lastLossTimeRef.current) < 30000 && signal.direction === lastLossDirRef.current) {
-        addLog(`⚠ Skipping ${signal.direction} — same dir as last loss`, "warning"); return;
-      }
-
-      lastSignalRef.current = now;
-      const entry = { id: now, time: new Date().toLocaleTimeString(), ...signal, price: price.toFixed(5), acted: execModeRef.current === "auto" };
-      setSignals(p => [entry, ...p].slice(0, 30));
-      addLog(`Signal: ${signal.direction} · ${signal.strength}% · ${signal.summary}`, "signal");
-
-      if (execModeRef.current === "auto") placeTrade(signal);
-      else setPendingSignal(entry);
-    };
-
-    handleMsgRef.current  = handleMsg;
-    evalSignalRef.current = evalSignal;
-
-    const connect = useCallback(() => {
-      if (socketRef.current) socketRef.current.close();
-      if (pingTimerRef.current) clearInterval(pingTimerRef.current);
-      setWsStatus("connecting"); addLog("Connecting to Deriv…", "info");
-      const socket = new WebSocket(DERIV_WS_URL);
-      socketRef.current = socket;
-      socket.onopen = () => {
-        setConnected(true); setWsStatus("connected"); addLog("Connected", "success");
-        pingTimerRef.current = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ ping: 1 })); }, PING_INTERVAL_MS);
+        if (strategy === "MACD") {
+          const m   = calcMACD(prices, cfg.fast, cfg.slow, cfg.signal);
+          const rsi = calcRSI(prices, cfg.rsiPeriod);
+          if (!m || !rsi) return null;
+          if (m.crossUp && rsi > cfg.rsiBuy)   return { direction: "CALL", strength: cfg.minStrength + Math.round((rsi - cfg.rsiBuy) * 0.6),           summary: `MACD ↑ cross · RSI ${rsi.toFixed(1)} ✓`, macdGate: "Primary MACD crossover", components: null };
+          if (m.crossDown && rsi < (100 - cfg.rsiBuy)) return { direction: "PUT",  strength: cfg.minStrength + Math.round(((100 - cfg.rsiBuy) - rsi) * 0.6), summary: `MACD ↓ cross · RSI ${rsi.toFixed(1)} ✓`, macdGate: "Primary MACD crossover", components: null };
+        }
+        return null;
       };
-      socket.onclose = () => {
-        setConnected(false); setAuthorized(false); setWsStatus("disconnected");
-        setBotRunning(false); runningRef.current = false;
-        if (pingTimerRef.current) { clearInterval(pingTimerRef.current); pingTimerRef.current = null; }
-        addLog("Disconnected", "warning");
+
+      const getSignal = (strategy, prices, prev, symbol, execMode, macdRequired) =>
+        strategy === "HYBRID"
+          ? computeHybrid(prices, symbol, execMode, macdRequired)
+          : computeSingle(strategy, prices, prev, symbol, macdRequired);
+
+      // ─── BACKTEST ENGINE (NEW) ────────────────────────────────────────────────────
+      // Replays priceHistory through the signal engine with simulated "future" outcome.
+      // Outcome: if direction=CALL and price rose after N ticks → WIN, else LOSS.
+      const runBacktest = (prices, strategy, symbol, duration, minStr, macdRequired) => {
+        const TICK_LOOKAHEAD = Math.max(10, duration * 4); // ~4 ticks per minute simulated
+        const MIN_PRICES = 100;
+        if (prices.length < MIN_PRICES + TICK_LOOKAHEAD) {
+          return { error: `Need at least ${MIN_PRICES + TICK_LOOKAHEAD} price ticks. Have ${prices.length}.` };
+        }
+
+        const results = [];
+        const cooldownTicks = 15; // skip 15 ticks after each signal to avoid clustering
+        let lastSignalAt = -cooldownTicks;
+
+        for (let i = MIN_PRICES; i < prices.length - TICK_LOOKAHEAD; i++) {
+          if (i - lastSignalAt < cooldownTicks) continue;
+
+          const slice = prices.slice(0, i + 1);
+          const prev  = prices.slice(0, i);
+          const signal = getSignal(strategy, slice, prev, symbol, "auto", macdRequired);
+
+          if (!signal || signal.filtered || signal.strength < minStr) continue;
+
+          // Simulate outcome: price after TICK_LOOKAHEAD ticks
+          const entryPrice  = prices[i];
+          const exitPrice   = prices[i + TICK_LOOKAHEAD];
+          const priceChange = exitPrice - entryPrice;
+          const won = signal.direction === "CALL" ? priceChange > 0 : priceChange < 0;
+
+          results.push({
+            index: i,
+            direction: signal.direction,
+            strength: signal.strength,
+            entry: entryPrice,
+            exit: exitPrice,
+            change: priceChange,
+            won,
+            macdGate: signal.macdGate || "—",
+            summary: signal.summary,
+          });
+          lastSignalAt = i;
+        }
+
+        if (results.length === 0) return { error: "No signals fired during backtest. Try lowering minStrength or switching strategy." };
+
+        const wins   = results.filter(r => r.won).length;
+        const losses = results.length - wins;
+        const winRate = (wins / results.length) * 100;
+        const callSigs = results.filter(r => r.direction === "CALL");
+        const putSigs  = results.filter(r => r.direction === "PUT");
+        const callWR = callSigs.length > 0 ? (callSigs.filter(r => r.won).length / callSigs.length * 100).toFixed(1) : "—";
+        const putWR  = putSigs.length  > 0 ? (putSigs.filter(r => r.won).length  / putSigs.length  * 100).toFixed(1) : "—";
+        const avgStrength = results.reduce((a, r) => a + r.strength, 0) / results.length;
+
+        // Streak analysis
+        let maxWinStreak = 0, maxLossStreak = 0, curWin = 0, curLoss = 0;
+        for (const r of results) {
+          if (r.won) { curWin++; curLoss = 0; maxWinStreak = Math.max(maxWinStreak, curWin); }
+          else       { curLoss++; curWin = 0; maxLossStreak = Math.max(maxLossStreak, curLoss); }
+        }
+
+        // Profit factor (assuming 85% payout, stake=1)
+        const PAYOUT_RATIO = 0.85;
+        const grossProfit = wins * PAYOUT_RATIO;
+        const grossLoss   = losses * 1;
+        const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : "∞";
+
+        // Rolling 10-signal win rate for chart data
+        const rolling = [];
+        for (let i = 9; i < results.length; i++) {
+          const w = results.slice(i - 9, i + 1).filter(r => r.won).length;
+          rolling.push({ idx: i, wr: (w / 10) * 100 });
+        }
+
+        return {
+          total: results.length,
+          wins, losses,
+          winRate: winRate.toFixed(1),
+          callWR, putWR,
+          avgStrength: avgStrength.toFixed(1),
+          maxWinStreak, maxLossStreak,
+          profitFactor,
+          rolling,
+          results: results.slice(0, 50), // last 50 for log display
+        };
       };
-      socket.onerror = () => { setWsStatus("error"); addLog("Connection error", "error"); };
-      socket.onmessage = (e) => { const d = JSON.parse(e.data); if (d.msg_type === "ping") return; handleMsgRef.current(d); };
-    }, [addLog]);
 
-    const authorize = () => { if (!tokenInput.trim()) { addLog("Enter a token first", "error"); return; } socketRef.current?.send(JSON.stringify({ authorize: tokenInput })); addLog("Authorizing…", "info"); };
+      // ─── Win Rate Log Entry (live session) ───────────────────────────────────────
+      // A per-session rolling log stored in state, surfaced in a dedicated tab.
 
-    const startBot = () => {
-      if (!authorized) { addLog("Authorize first", "error"); return; }
-      pricesRef.current = []; prevRef.current = []; tickCountRef.current = 0;
-      currentStakeRef.current = initStakeRef.current;
-      sessionWinsRef.current = 0; sessionTotalRef.current = 0; sessionPnLRef.current = 0;
-      setBotRunning(true); runningRef.current = true;
-      socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      socketRef.current?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-      addLog(`▶ Started · ${STRATEGIES.find(s => s.value === strategy)?.label} · ${symbol} · ${duration}min · MACD Gate: ${macdGateEnabled ? "ON" : "OFF"}`, "success");
-      addLog(`Warming up… needs 80 ticks before signalling`, "info");
-    };
+      // ─── Sparkline ────────────────────────────────────────────────────────────────
+      const Sparkline = ({ data, color = "#00ff88", width = 130, height = 38 }) => {
+        if (!data || data.length < 2) return <svg width={width} height={height} />;
+        const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+        const pts = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * height}`).join(" ");
+        return (
+          <svg width={width} height={height} style={{ overflow: "visible" }}>
+            <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+        );
+      };
 
-    const stopBot = () => {
-      setBotRunning(false); runningRef.current = false;
-      socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      setPendingSignal(null); setLiveSignal(null);
-      if (sessionTotalRef.current > 0) {
-        const wr = ((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1);
-        setWrLog(p => [...p, { time: new Date().toLocaleTimeString("en-GB"), total: sessionTotalRef.current, wins: sessionWinsRef.current, wr, pnl: sessionPnLRef.current.toFixed(2), isFinal: true }].slice(-100));
-      }
-      addLog("■ Bot stopped", "warning");
-    };
+      // Rolling win rate sparkline data
+      const WRSparkline = ({ data, width = 200, height = 40 }) => {
+        if (!data || data.length < 2) return <svg width={width} height={height}><text x="4" y="20" fill="#2a5438" fontSize="9">Need 10+ signals</text></svg>;
+        const vals = data.map(d => d.wr);
+        const min = 0, max = 100, range = 100;
+        const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * width},${height - ((v - min) / range) * height}`).join(" ");
+        const color = vals[vals.length - 1] >= 55 ? "#00ff88" : vals[vals.length - 1] >= 45 ? "#ffaa00" : "#ff3d5f";
+        return (
+          <svg width={width} height={height} style={{ overflow: "visible" }}>
+            <line x1="0" y1={height * 0.45} x2={width} y2={height * 0.45} stroke="#142a1c" strokeWidth="1" strokeDasharray="3,3" />
+            <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+          </svg>
+        );
+      };
 
-    const resetDay = () => {
-      pnlRef.current = 0; tradeCountRef.current = 0; consecLossRef.current = 0; lastLossDirRef.current = null;
-      currentStakeRef.current = initStakeRef.current;
-      sessionWinsRef.current = 0; sessionTotalRef.current = 0; sessionPnLRef.current = 0;
-      setDailyPnL(0); setTodayTrades(0); setConsecLosses(0); setWrLog([]);
-      addLog("Daily stats reset", "info");
-    };
+      const StrengthGauge = ({ value, size = 70 }) => {
+        const r = size / 2 - 7, cx = size / 2, cy = size / 2;
+        const toRad = d => (d * Math.PI) / 180;
+        const arcPath = (s, e) => {
+          const [sx, sy] = [cx + r * Math.cos(toRad(s)), cy + r * Math.sin(toRad(s))];
+          const [ex, ey] = [cx + r * Math.cos(toRad(e)), cy + r * Math.sin(toRad(e))];
+          return `M ${sx} ${sy} A ${r} ${r} 0 ${e - s > 180 ? 1 : 0} 1 ${ex} ${ey}`;
+        };
+        const color = value >= 80 ? "#00ff88" : value >= 65 ? "#ffaa00" : "#ff3d5f";
+        return (
+          <svg width={size} height={size}>
+            <path d={arcPath(135, 404.9)} fill="none" stroke="#162e22" strokeWidth="6" strokeLinecap="round" />
+            <path d={arcPath(135, Math.min(135 + (value / 100) * 270, 404.8))} fill="none" stroke={color} strokeWidth="6"
+              strokeLinecap="round" style={{ filter: `drop-shadow(0 0 5px ${color}90)` }} />
+            <text x={cx} y={cy + 5} textAnchor="middle" fill={color} fontSize="13" fontFamily="'Syne',sans-serif" fontWeight="800">{value}%</text>
+          </svg>
+        );
+      };
 
-    const runBt = () => {
-      if (pricesRef.current.length < 120) { addLog("Backtest needs ≥120 collected prices. Keep bot running to gather data.", "warning"); return; }
-      setBtRunning(true);
-      setTimeout(() => {
-        const result = runBacktest(pricesRef.current, strategyRef.current, symbolRef.current, durationRef.current, parseFloat(minStrength), macdGateRef.current);
-        setBtResult(result);
-        setBtRunning(false);
-        if (result.error) addLog(`Backtest: ${result.error}`, "warning");
-        else addLog(`Backtest complete · ${result.total} signals · WR ${result.winRate}% · PF ${result.profitFactor}`, "success");
-      }, 50);
-    };
+      const Pill = ({ label, score, agrees, vote }) => {
+        const color  = agrees ? "#00ff88" : vote === 0 ? "#5a9e78" : "#ff3d5f";
+        const bg     = agrees ? "rgba(0,255,136,.09)" : vote === 0 ? "rgba(90,158,120,.06)" : "rgba(255,61,95,.09)";
+        const border = agrees ? "rgba(0,255,136,.3)"  : vote === 0 ? "rgba(90,158,120,.2)"  : "rgba(255,61,95,.3)";
+        return (
+          <div style={{ flex: 1, background: bg, border: `1px solid ${border}`, borderRadius: 4, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 8, color: "#5a9e78", letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
+              <span style={{ fontSize: 13, color, fontWeight: 700, lineHeight: 1 }}>{vote === 1 ? "↑" : vote === -1 ? "↓" : "–"}</span>
+            </div>
+            <div style={{ fontSize: 12, color, fontWeight: 700 }}>{score}%</div>
+            <div style={{ height: 3, background: "#162e22", borderRadius: 2 }}>
+              <div style={{ height: "100%", width: `${score}%`, background: color, borderRadius: 2, transition: "width .4s" }} />
+            </div>
+          </div>
+        );
+      };
 
-    const symInfo   = SYMBOLS.find(s => s.value === symbol);
-    const winRate   = trades.length > 0 ? ((trades.filter(t => t.won).length / trades.length) * 100).toFixed(1) : null;
-    const totalPnL  = trades.reduce((a, t) => a + t.profit, 0);
-    const lossRatio = maxLossRef.current > 0 ? Math.min(100, (Math.abs(Math.min(0, dailyPnL)) / maxLossRef.current) * 100) : 0;
-    const tradeRatio = parseInt(maxTrades, 10) > 0 ? Math.min(100, (todayTrades / parseInt(maxTrades, 10)) * 100) : 0;
-    const riskColor = lossRatio > 75 ? "#ff3d5f" : lossRatio > 50 ? "#ffaa00" : "#00ff88";
-    const strColor  = s => s >= 80 ? "#00ff88" : s >= 65 ? "#ffaa00" : "#ff3d5f";
+      // ─── Main Component ───────────────────────────────────────────────────────────
+      function DerivBot() {
+        const [tokenInput, setTokenInput]   = useState("");
+        const [connected, setConnected]     = useState(false);
+        const [authorized, setAuthorized]   = useState(false);
+        const [accountInfo, setAccountInfo] = useState(null);
+        const [balance, setBalance]         = useState(null);
+        const [wsStatus, setWsStatus]       = useState("disconnected");
 
-    const liveRollingWR = (() => {
-      if (trades.length < 2) return [];
-      const res = [];
-      for (let i = Math.min(9, trades.length - 1); i < trades.length; i++) {
-        const w = [...trades].reverse().slice(Math.max(0, i - 9), i + 1).filter(t => t.won).length;
-        res.push({ wr: (w / Math.min(10, i + 1)) * 100 });
-      }
-      return res;
-    })();
+        const [symbol, setSymbol]               = useState("R_50");
+        const [strategy, setStrategy]           = useState("HYBRID");
+        const [stake, setStake]                 = useState("1");
+        const [duration, setDuration]           = useState(1);
+        const [maxDailyLoss, setMaxDailyLoss]   = useState("5");
+        const [maxTrades, setMaxTrades]         = useState("20");
+        const [minStrength, setMinStrength]     = useState("78");
+        const [martingale, setMartingale]       = useState(false);
+        const [martMul, setMartMul]             = useState("1.8");
+        const [execMode, setExecMode]           = useState("auto");
+        const [macdGateEnabled, setMacdGateEnabled] = useState(true); // NEW: MACD gate toggle
 
-    const CSS = `@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
-```
+        const [botRunning, setBotRunning]       = useState(false);
+        const [currentPrice, setCurrentPrice]   = useState(null);
+        const [priceHistory, setPriceHistory]   = useState([]);
+        const [liveSignal, setLiveSignal]       = useState(null);
+        const [pendingSignal, setPendingSignal] = useState(null);
+        const [signals, setSignals]             = useState([]);
+        const [trades, setTrades]               = useState([]);
+        const [openContracts, setOpenContracts] = useState([]);
+        const [dailyPnL, setDailyPnL]           = useState(0);
+        const [todayTrades, setTodayTrades]     = useState(0);
+        const [consecLosses, setConsecLosses]   = useState(0);
+        const [activeTab, setActiveTab]         = useState("signal");
+        const [logs, setLogs]                   = useState([]);
 
+        // NEW: Backtest state
+        const [btResult, setBtResult]     = useState(null);
+        const [btRunning, setBtRunning]   = useState(false);
+
+        // NEW: Per-session win-rate log (rolling window per 10 trades)
+        const [wrLog, setWrLog] = useState([]);  // [{ time, total, wins, wr, pnl }]
+
+        const socketRef        = useRef(null);
+        const pricesRef        = useRef([]);
+        const prevRef          = useRef([]);
+        const runningRef       = useRef(false);
+        const pnlRef           = useRef(0);
+        const tradeCountRef    = useRef(0);
+        const consecLossRef    = useRef(0);
+        const initStakeRef     = useRef(1);
+        const currentStakeRef  = useRef(1);
+        const execModeRef      = useRef("auto");
+        const symbolRef        = useRef("R_50");
+        const strategyRef      = useRef("HYBRID");
+        const durationRef      = useRef(5);
+        const minStrRef        = useRef(78);
+        const accountInfoRef   = useRef(null);
+        const martingaleRef    = useRef(false);
+        const martMulRef       = useRef(1.8);
+        const maxLossRef       = useRef(10);
+        const maxTradesRef     = useRef(20);
+        const lastSignalRef    = useRef(0);
+        const tickCountRef     = useRef(0);
+        const pingTimerRef     = useRef(null);
+        const lastLossDirRef   = useRef(null);
+        const lastLossTimeRef  = useRef(0);
+        const macdGateRef      = useRef(true);
+        const subscriptionIds  = useRef({});
+        const pendingDirections = useRef({});
+        const handleMsgRef     = useRef(null);
+        const evalSignalRef    = useRef(null);
+        // Win rate log refs for live update
+        const sessionWinsRef   = useRef(0);
+        const sessionTotalRef  = useRef(0);
+        const sessionPnLRef    = useRef(0);
+
+        useEffect(() => { execModeRef.current   = execMode;                }, [execMode]);
+        useEffect(() => { symbolRef.current     = symbol;                  }, [symbol]);
+        useEffect(() => { strategyRef.current   = strategy;                }, [strategy]);
+        useEffect(() => { durationRef.current   = duration;                }, [duration]);
+        useEffect(() => { minStrRef.current     = parseFloat(minStrength); }, [minStrength]);
+        useEffect(() => { accountInfoRef.current = accountInfo;            }, [accountInfo]);
+        useEffect(() => { martingaleRef.current = martingale;              }, [martingale]);
+        useEffect(() => { martMulRef.current    = parseFloat(martMul);     }, [martMul]);
+        useEffect(() => { maxTradesRef.current  = parseInt(maxTrades, 10); }, [maxTrades]);
+        useEffect(() => { initStakeRef.current  = parseFloat(stake);       }, [stake]);
+        useEffect(() => { macdGateRef.current   = macdGateEnabled;         }, [macdGateEnabled]);
+        useEffect(() => {
+          const bal = accountInfoRef.current?.balance ?? 0;
+          maxLossRef.current = (bal * (parseFloat(maxDailyLoss) || 0)) / 100;
+        }, [maxDailyLoss, accountInfo]);
+
+        const addLog = useCallback((msg, type = "info") => {
+          const time = new Date().toLocaleTimeString("en-GB");
+          setLogs(prev => [{ time, msg, type, id: Date.now() + Math.random() }, ...prev].slice(0, 100));
+        }, []);
+
+        const placeTrade = useCallback((signal) => {
+          if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) { addLog("WebSocket not ready", "error"); return; }
+          const tradeStake = currentStakeRef.current;
+          pendingDirections.current["__next"] = signal.direction;
+          socketRef.current.send(JSON.stringify({
+            buy: 1, price: tradeStake,
+            parameters: {
+              amount: tradeStake, basis: "stake",
+              contract_type: signal.direction,
+              currency: accountInfoRef.current?.currency || "USD",
+              duration: durationRef.current, duration_unit: "m",
+              symbol: symbolRef.current,
+            },
+          }));
+          setPendingSignal(null);
+          addLog(`Placing ${signal.direction} · stake ${tradeStake.toFixed(2)} · str ${signal.strength}% · ${signal.macdGate || "no gate"}`, "success");
+        }, [addLog]);
+
+        const dismissSignal = useCallback(() => { addLog("Signal dismissed", "warning"); setPendingSignal(null); }, [addLog]);
+
+        const handleMsg = (data) => {
+          if (data.error) { addLog(`Deriv error: ${data.error.message}`, "error"); return; }
+
+          if (data.msg_type === "authorize") {
+            setAuthorized(true); setAccountInfo(data.authorize); accountInfoRef.current = data.authorize;
+            const pct = parseFloat(maxDailyLoss) || 5;
+            maxLossRef.current = (data.authorize.balance * pct) / 100;
+            setBalance(data.authorize.balance);
+            addLog(`Authorized — ${data.authorize.loginid} · ${data.authorize.currency} ${data.authorize.balance}`, "success");
+            socketRef.current?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+          }
+
+          if (data.msg_type === "balance") {
+            const nb = data.balance.balance;
+            setBalance(nb);
+            if (accountInfoRef.current) {
+              accountInfoRef.current = { ...accountInfoRef.current, balance: nb };
+              maxLossRef.current = (nb * (parseFloat(maxDailyLoss) || 5)) / 100;
+            }
+          }
+
+          if (data.msg_type === "tick") {
+            const price = parseFloat(data.tick.quote);
+            setCurrentPrice(price);
+            prevRef.current = [...pricesRef.current];
+            pricesRef.current = [...pricesRef.current, price].slice(-400);
+            tickCountRef.current += 1;
+            if (tickCountRef.current % 4 === 0) setPriceHistory([...pricesRef.current.slice(-80)]);
+            if (runningRef.current && pricesRef.current.length >= 80 && tickCountRef.current % 3 === 0)
+              evalSignalRef.current(price);
+          }
+
+          if (data.msg_type === "buy") {
+            const contractId = data.buy.contract_id;
+            const direction = pendingDirections.current["__next"] || "CALL";
+            delete pendingDirections.current["__next"];
+            pendingDirections.current[contractId] = direction;
+            tradeCountRef.current += 1;
+            setTodayTrades(p => p + 1);
+            addLog(`Contract #${contractId} opened · stake ${data.buy.buy_price}`, "success");
+            setOpenContracts(p => [...p, { id: contractId, buyPrice: data.buy.buy_price, openTime: new Date().toLocaleTimeString(), symbol: symbolRef.current, direction }]);
+            socketRef.current?.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }));
+          }
+
+          if (data.msg_type === "proposal_open_contract") {
+            const contract = data.proposal_open_contract;
+            if (data.subscription && !subscriptionIds.current[contract.contract_id])
+              subscriptionIds.current[contract.contract_id] = data.subscription.id;
+            if (!contract.is_sold) return;
+
+            const contractId = contract.contract_id;
+            const direction = pendingDirections.current[contractId] || (contract.contract_type?.includes("CALL") ? "CALL" : "PUT");
+            delete pendingDirections.current[contractId];
+
+            const subId = subscriptionIds.current[contractId];
+            if (subId) { socketRef.current?.send(JSON.stringify({ forget: subId })); delete subscriptionIds.current[contractId]; }
+
+            const profit = parseFloat(contract.profit);
+            pnlRef.current += profit;
+            setDailyPnL(p => p + profit);
+            setOpenContracts(p => p.filter(c => c.id !== contractId));
+
+            // NEW: update session win-rate log
+            sessionTotalRef.current += 1;
+            sessionPnLRef.current += profit;
+            if (profit > 0) {
+              sessionWinsRef.current += 1;
+              consecLossRef.current = 0; setConsecLosses(0);
+              currentStakeRef.current = initStakeRef.current;
+              lastLossDirRef.current = null;
+              addLog(`✓ WON +${profit.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "success");
+            } else {
+              consecLossRef.current += 1; setConsecLosses(consecLossRef.current);
+              lastLossDirRef.current = direction; lastLossTimeRef.current = Date.now();
+              if (martingaleRef.current) {
+                const next = Math.min(currentStakeRef.current * martMulRef.current, (accountInfoRef.current?.balance ?? 100) * 0.04);
+                currentStakeRef.current = next;
+                addLog(`✗ LOST ${profit.toFixed(2)} · Martingale→${next.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "warning");
+              } else {
+                addLog(`✗ LOST ${profit.toFixed(2)} · WR ${((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1)}%`, "error");
+              }
+            }
+
+            // NEW: push WR log snapshot every 5 trades
+            if (sessionTotalRef.current % 5 === 0) {
+              const wr = ((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1);
+              setWrLog(p => [...p, { time: new Date().toLocaleTimeString("en-GB"), total: sessionTotalRef.current, wins: sessionWinsRef.current, wr, pnl: sessionPnLRef.current.toFixed(2) }].slice(-100));
+            }
+
+            setTrades(p => [{
+              id: contractId, time: new Date().toLocaleTimeString(),
+              symbol: symbolRef.current, direction,
+              stake: parseFloat(contract.buy_price), profit, won: profit > 0,
+              payout: parseFloat(contract.sell_price || 0),
+            }, ...p].slice(0, 50));
+          }
+        };
+
+        const evalSignal = (price) => {
+          if (pnlRef.current <= -maxLossRef.current)   { addLog("⚠ Daily loss limit hit — stopping", "warning"); setBotRunning(false); runningRef.current = false; return; }
+          if (tradeCountRef.current >= maxTradesRef.current) { addLog("⚠ Max trades reached — stopping", "warning"); setBotRunning(false); runningRef.current = false; return; }
+          if (consecLossRef.current >= 4) {
+            addLog("⚠ 4 consecutive losses — 60s cooldown", "warning");
+            consecLossRef.current = 0; setConsecLosses(0); runningRef.current = false;
+            setTimeout(() => { if (socketRef.current?.readyState === WebSocket.OPEN) { runningRef.current = true; addLog("▶ Resuming after cooldown", "info"); } }, 60000);
+            return;
+          }
+
+          const prices = pricesRef.current;
+          const prev   = prevRef.current.length > 1 ? prevRef.current : prices.slice(0, -1);
+          const signal = getSignal(strategyRef.current, prices, prev, symbolRef.current, execModeRef.current, macdGateRef.current);
+
+          if (signal && signal.filtered) {
+            setLiveSignal(null);
+            if (signal.reason?.includes("MACD gate")) addLog(`MACD gate blocked: ${signal.reason}`, "warning");
+            return;
+          }
+
+          setLiveSignal(signal);
+          if (!signal || signal.strength < minStrRef.current) return;
+
+          const now = Date.now();
+          const cfg = getCfg(symbolRef.current, "HYBRID");
+          if (now - lastSignalRef.current < (cfg?.cooldownMs || 15000)) return;
+
+          if (lastLossDirRef.current && (now - lastLossTimeRef.current) < 30000 && signal.direction === lastLossDirRef.current) {
+            addLog(`⚠ Skipping ${signal.direction} — same dir as last loss`, "warning"); return;
+          }
+
+          lastSignalRef.current = now;
+          const entry = { id: now, time: new Date().toLocaleTimeString(), ...signal, price: price.toFixed(5), acted: execModeRef.current === "auto" };
+          setSignals(p => [entry, ...p].slice(0, 30));
+          addLog(`Signal: ${signal.direction} · ${signal.strength}% · ${signal.summary}`, "signal");
+
+          if (execModeRef.current === "auto") placeTrade(signal);
+          else setPendingSignal(entry);
+        };
+
+        handleMsgRef.current  = handleMsg;
+        evalSignalRef.current = evalSignal;
+
+        const connect = useCallback(() => {
+          if (socketRef.current) socketRef.current.close();
+          if (pingTimerRef.current) clearInterval(pingTimerRef.current);
+          setWsStatus("connecting"); addLog("Connecting to Deriv…", "info");
+          const socket = new WebSocket(DERIV_WS_URL);
+          socketRef.current = socket;
+          socket.onopen = () => {
+            setConnected(true); setWsStatus("connected"); addLog("Connected", "success");
+            pingTimerRef.current = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ ping: 1 })); }, PING_INTERVAL_MS);
+          };
+          socket.onclose = () => {
+            setConnected(false); setAuthorized(false); setWsStatus("disconnected");
+            setBotRunning(false); runningRef.current = false;
+            if (pingTimerRef.current) { clearInterval(pingTimerRef.current); pingTimerRef.current = null; }
+            addLog("Disconnected", "warning");
+          };
+          socket.onerror = () => { setWsStatus("error"); addLog("Connection error", "error"); };
+          socket.onmessage = (e) => { const d = JSON.parse(e.data); if (d.msg_type === "ping") return; handleMsgRef.current(d); };
+        }, [addLog]);
+
+        const authorize = () => { if (!tokenInput.trim()) { addLog("Enter a token first", "error"); return; } socketRef.current?.send(JSON.stringify({ authorize: tokenInput })); addLog("Authorizing…", "info"); };
+
+        const startBot = () => {
+          if (!authorized) { addLog("Authorize first", "error"); return; }
+          pricesRef.current = []; prevRef.current = []; tickCountRef.current = 0;
+          currentStakeRef.current = initStakeRef.current;
+          sessionWinsRef.current = 0; sessionTotalRef.current = 0; sessionPnLRef.current = 0;
+          setBotRunning(true); runningRef.current = true;
+          socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
+          socketRef.current?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+          addLog(`▶ Started · ${STRATEGIES.find(s => s.value === strategy)?.label} · ${symbol} · MACD Gate: ${macdGateEnabled ? "ON" : "OFF"}`, "success");
+          addLog(`Warming up… needs 80 ticks before signalling`, "info");
+        };
+
+        const stopBot = () => {
+          setBotRunning(false); runningRef.current = false;
+          socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
+          setPendingSignal(null); setLiveSignal(null);
+          // Final WR snapshot on stop
+          if (sessionTotalRef.current > 0) {
+            const wr = ((sessionWinsRef.current / sessionTotalRef.current) * 100).toFixed(1);
+            setWrLog(p => [...p, { time: new Date().toLocaleTimeString("en-GB"), total: sessionTotalRef.current, wins: sessionWinsRef.current, wr, pnl: sessionPnLRef.current.toFixed(2), isFinal: true }].slice(-100));
+          }
+          addLog("■ Bot stopped", "warning");
+        };
+
+        const resetDay = () => {
+          pnlRef.current = 0; tradeCountRef.current = 0; consecLossRef.current = 0; lastLossDirRef.current = null;
+          currentStakeRef.current = initStakeRef.current;
+          sessionWinsRef.current = 0; sessionTotalRef.current = 0; sessionPnLRef.current = 0;
+          setDailyPnL(0); setTodayTrades(0); setConsecLosses(0); setWrLog([]);
+          addLog("Daily stats reset", "info");
+        };
+
+        // NEW: Run backtest on current price history
+        const runBt = () => {
+          if (pricesRef.current.length < 120) { addLog("Backtest needs ≥120 collected prices. Keep bot running to gather data.", "warning"); return; }
+          setBtRunning(true);
+          setTimeout(() => {
+            const result = runBacktest(pricesRef.current, strategyRef.current, symbolRef.current, durationRef.current, parseFloat(minStrength), macdGateRef.current);
+            setBtResult(result);
+            setBtRunning(false);
+            if (result.error) addLog(`Backtest: ${result.error}`, "warning");
+            else addLog(`Backtest complete · ${result.total} signals · WR ${result.winRate}% · PF ${result.profitFactor}`, "success");
+          }, 50);
+        };
+
+        const symInfo   = SYMBOLS.find(s => s.value === symbol);
+        const winRate   = trades.length > 0 ? ((trades.filter(t => t.won).length / trades.length) * 100).toFixed(1) : null;
+        const totalPnL  = trades.reduce((a, t) => a + t.profit, 0);
+        const lossRatio = maxLossRef.current > 0 ? Math.min(100, (Math.abs(Math.min(0, dailyPnL)) / maxLossRef.current) * 100) : 0;
+        const tradeRatio = parseInt(maxTrades, 10) > 0 ? Math.min(100, (todayTrades / parseInt(maxTrades, 10)) * 100) : 0;
+        const riskColor = lossRatio > 75 ? "#ff3d5f" : lossRatio > 50 ? "#ffaa00" : "#00ff88";
+        const strColor  = s => s >= 80 ? "#00ff88" : s >= 65 ? "#ffaa00" : "#ff3d5f";
+
+        // Rolling live WR for sparkline
+        const liveRollingWR = (() => {
+          if (trades.length < 2) return [];
+          const res = [];
+          for (let i = Math.min(9, trades.length - 1); i < trades.length; i++) {
+            const w = [...trades].reverse().slice(Math.max(0, i - 9), i + 1).filter(t => t.won).length;
+            res.push({ wr: (w / Math.min(10, i + 1)) * 100 });
+          }
+          return res;
+        })();
+
+        const CSS = `@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{–bg:#020c08;–bg2:#050f0a;–bg3:#0a1910;–bd:#142a1c;–bd2:#1e3d2c;–g:#00ff88;–b:#00ccff;–r:#ff3d5f;–y:#ffaa00;–t:#b0f0cc;–t2:#4d9968;–t3:#2a5438;–card:#060d09}
-.R{font-family:‘Space Mono’,monospace;background:var(–bg);color:var(–t);min-height:100vh;display:flex;flex-direction:column}
-.H{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;background:var(–bg2);border-bottom:1px solid var(–bd);position:sticky;top:0;z-index:200}
+:root{--bg:#020c08;--bg2:#050f0a;--bg3:#0a1910;--bd:#142a1c;--bd2:#1e3d2c;--g:#00ff88;--b:#00ccff;--r:#ff3d5f;--y:#ffaa00;--t:#b0f0cc;--t2:#4d9968;--t3:#2a5438;--card:#060d09}
+.R{font-family:'Space Mono',monospace;background:var(--bg);color:var(--t);min-height:100vh;display:flex;flex-direction:column}
+.H{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;background:var(--bg2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:200}
 .Lg{display:flex;align-items:center;gap:9px}
-.Lh{width:26px;height:26px;background:var(–g);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)}
-.Lt{font-family:‘Syne’,sans-serif;font-weight:800;font-size:15px}.Lt em{color:var(–g);font-style:normal}
-.Ls{font-size:8px;color:var(–t3);letter-spacing:2px;text-transform:uppercase;margin-top:1px}
+.Lh{width:26px;height:26px;background:var(--g);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)}
+.Lt{font-family:'Syne',sans-serif;font-weight:800;font-size:15px}.Lt em{color:var(--g);font-style:normal}
+.Ls{font-size:8px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-top:1px}
 .Hr{display:flex;align-items:center;gap:12px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(–t3)}.dot.on{background:var(–g);box-shadow:0 0 8px var(–g);animation:bl 2s infinite}.dot.er{background:var(–r)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--t3)}.dot.on{background:var(--g);box-shadow:0 0 8px var(--g);animation:bl 2s infinite}.dot.er{background:var(--r)}
 @keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
-.hl{font-size:9px;color:var(–t2);letter-spacing:1px;text-transform:uppercase}
+.hl{font-size:9px;color:var(--t2);letter-spacing:1px;text-transform:uppercase}
 .tag{font-size:8px;padding:3px 7px;border-radius:2px;letter-spacing:1px;text-transform:uppercase}
-.tag-g{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(–g)}
-.tag-b{background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:var(–b)}
+.tag-g{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--g)}
+.tag-b{background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:var(--b)}
 .B{display:flex;flex:1;min-height:0}
-.S{width:256px;min-width:256px;background:var(–bg2);border-right:1px solid var(–bd);padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
-.sl{font-size:7.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(–t3);border-bottom:1px solid var(–bd);padding-bottom:5px;margin-bottom:1px}
+.S{width:256px;min-width:256px;background:var(--bg2);border-right:1px solid var(--bd);padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.sl{font-size:7.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--bd);padding-bottom:5px;margin-bottom:1px}
 .sc{display:flex;flex-direction:column;gap:8px}
-.fg{display:flex;flex-direction:column;gap:4px}.fl{font-size:9px;color:var(–t2)}
-.fi,.fse{background:var(–bg3);border:1px solid var(–bd);color:var(–t);font-family:‘Space Mono’,monospace;font-size:11px;padding:7px 8px;border-radius:3px;outline:none;width:100%;transition:border-color .15s}
-.fi:focus,.fse:focus{border-color:var(–g)}.fi::placeholder{color:var(–t3)}.fse option{background:var(–bg3)}
-.tr{display:flex;align-items:center;justify-content:space-between}.tl{font-size:10px;color:var(–t2)}
+.fg{display:flex;flex-direction:column;gap:4px}.fl{font-size:9px;color:var(--t2)}
+.fi,.fse{background:var(--bg3);border:1px solid var(--bd);color:var(--t);font-family:'Space Mono',monospace;font-size:11px;padding:7px 8px;border-radius:3px;outline:none;width:100%;transition:border-color .15s}
+.fi:focus,.fse:focus{border-color:var(--g)}.fi::placeholder{color:var(--t3)}.fse option{background:var(--bg3)}
+.tr{display:flex;align-items:center;justify-content:space-between}.tl{font-size:10px;color:var(--t2)}
 .tog{position:relative;width:32px;height:17px;cursor:pointer}.tog input{opacity:0;width:0;height:0;position:absolute}
-.tt{position:absolute;inset:0;background:var(–bg3);border:1px solid var(–bd);border-radius:17px;transition:all .2s}
-.tog input:checked~.tt{background:var(–g);border-color:var(–g)}
-.tb{position:absolute;top:3px;left:3px;width:9px;height:9px;border-radius:50%;background:var(–t3);transition:all .2s}
-.tog input:checked~.tb{transform:translateX(15px);background:var(–bg)}
-.btn{font-family:‘Space Mono’,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:8px 12px;border-radius:3px;border:none;cursor:pointer;transition:all .15s;font-weight:700}
-.bg{background:var(–g);color:var(–bg);width:100%}.bg:hover{filter:brightness(1.15)}.bg:disabled{opacity:.4;cursor:not-allowed}
-.bst{background:var(–r);color:#fff;width:100%}.bst:hover{filter:brightness(1.15)}
-.bgh{background:transparent;color:var(–t2);border:1px solid var(–bd)}.bgh:hover{border-color:var(–g);color:var(–g)}
-.bbt{background:rgba(0,204,255,.1);color:var(–b);border:1px solid rgba(0,204,255,.35);width:100%}.bbt:hover{filter:brightness(1.15)}.bbt:disabled{opacity:.4;cursor:not-allowed}
+.tt{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--bd);border-radius:17px;transition:all .2s}
+.tog input:checked~.tt{background:var(--g);border-color:var(--g)}
+.tb{position:absolute;top:3px;left:3px;width:9px;height:9px;border-radius:50%;background:var(--t3);transition:all .2s}
+.tog input:checked~.tb{transform:translateX(15px);background:var(--bg)}
+.btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:8px 12px;border-radius:3px;border:none;cursor:pointer;transition:all .15s;font-weight:700}
+.bg{background:var(--g);color:var(--bg);width:100%}.bg:hover{filter:brightness(1.15)}.bg:disabled{opacity:.4;cursor:not-allowed}
+.bst{background:var(--r);color:#fff;width:100%}.bst:hover{filter:brightness(1.15)}
+.bgh{background:transparent;color:var(--t2);border:1px solid var(--bd)}.bgh:hover{border-color:var(--g);color:var(--g)}
+.bbt{background:rgba(0,204,255,.1);color:var(--b);border:1px solid rgba(0,204,255,.35);width:100%}.bbt:hover{filter:brightness(1.15)}.bbt:disabled{opacity:.4;cursor:not-allowed}
 .bsm{padding:5px 9px;font-size:8px}
 .ms{display:flex;gap:5px}
-.mb{flex:1;padding:7px 5px;background:var(–bg3);border:1px solid var(–bd);border-radius:3px;color:var(–t2);font-family:‘Space Mono’,monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;text-align:center}
-.mb.ma{background:rgba(0,255,136,.1);border-color:var(–g);color:var(–g)}
-.mb.mm{background:rgba(0,204,255,.1);border-color:var(–b);color:var(–b)}
-.mb:not(.ma):not(.mm):hover{border-color:var(–bd2);color:var(–t)}
+.mb{flex:1;padding:7px 5px;background:var(--bg3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;text-align:center}
+.mb.ma{background:rgba(0,255,136,.1);border-color:var(--g);color:var(--g)}
+.mb.mm{background:rgba(0,204,255,.1);border-color:var(--b);color:var(--b)}
+.mb:not(.ma):not(.mm):hover{border-color:var(--bd2);color:var(--t)}
 .M{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
 .sg{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
-.st{background:var(–bg3);border:1px solid var(–bd);border-radius:4px;padding:11px 13px}
-.stl{font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(–t3);margin-bottom:4px}
-.stv{font-family:‘Syne’,sans-serif;font-size:19px;font-weight:800}.sts{font-size:8px;color:var(–t3);margin-top:2px}
-.cg{color:var(–g)}.cr{color:var(–r)}.cb{color:var(–b)}.cy{color:var(–y)}
-.card{background:var(–card);border:1px solid var(–bd);border-radius:4px;padding:12px}
-.ct{font-family:‘Syne’,sans-serif;font-size:9px;font-weight:700;color:var(–t2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
-.sb{flex:1;background:var(–bg3);border:1px solid var(–bd);border-radius:4px;padding:9px 13px;display:flex;align-items:center;gap:11px}
-.sbi{width:8px;height:8px;border-radius:50%;background:var(–t3)}.sbi.on{background:var(–g);box-shadow:0 0 8px var(–g);animation:bl 1.5s infinite}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(–bd);margin-bottom:12px;flex-wrap:wrap}
-.tab{font-family:‘Space Mono’,monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;padding:8px 10px;background:none;border:none;color:var(–t3);cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab.on{color:var(–g);border-bottom-color:var(–g)}.tab:not(.on):hover{color:var(–t2)}
-.cb2{display:inline-block;margin-left:4px;font-size:7.5px;color:var(–g)}
+.st{background:var(--bg3);border:1px solid var(--bd);border-radius:4px;padding:11px 13px}
+.stl{font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(--t3);margin-bottom:4px}
+.stv{font-family:'Syne',sans-serif;font-size:19px;font-weight:800}.sts{font-size:8px;color:var(--t3);margin-top:2px}
+.cg{color:var(--g)}.cr{color:var(--r)}.cb{color:var(--b)}.cy{color:var(--y)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:4px;padding:12px}
+.ct{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
+.sb{flex:1;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;padding:9px 13px;display:flex;align-items:center;gap:11px}
+.sbi{width:8px;height:8px;border-radius:50%;background:var(--t3)}.sbi.on{background:var(--g);box-shadow:0 0 8px var(--g);animation:bl 1.5s infinite}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--bd);margin-bottom:12px;flex-wrap:wrap}
+.tab{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;padding:8px 10px;background:none;border:none;color:var(--t3);cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--g);border-bottom-color:var(--g)}.tab:not(.on):hover{color:var(--t2)}
+.cb2{display:inline-block;margin-left:4px;font-size:7.5px;color:var(--g)}
 .sh{display:flex;gap:12px;align-items:stretch}
-.sm{flex:1;background:var(–bg3);border:1px solid var(–bd);border-radius:4px;padding:13px;display:flex;flex-direction:column;gap:9px}
+.sm{flex:1;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;padding:13px;display:flex;flex-direction:column;gap:9px}
 .sm.sc2{border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.03)}.sm.sp{border-color:rgba(255,61,95,.4);background:rgba(255,61,95,.03)}
-.sd{font-family:‘Syne’,sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px}.sd.cg2{color:var(–g)}.sd.cr2{color:var(–r)}
-.ss2{font-size:10px;color:var(–t2)}
-.gc{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;background:var(–bg3);border:1px solid var(–bd);border-radius:4px;min-width:88px}
-.gl{font-size:7.5px;color:var(–t3);letter-spacing:1.5px;text-transform:uppercase}
+.sd{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px}.sd.cg2{color:var(--g)}.sd.cr2{color:var(--r)}
+.ss2{font-size:10px;color:var(--t2)}
+.gc{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;min-width:88px}
+.gl{font-size:7.5px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase}
 .pr{display:flex;gap:7px;margin-top:2px}
-.ir{display:flex;align-items:center;gap:8px;font-size:9px;padding:3px 0;border-bottom:1px solid var(–bd)}.ir:last-child{border-bottom:none}
+.ir{display:flex;align-items:center;gap:8px;font-size:9px;padding:3px 0;border-bottom:1px solid var(--bd)}.ir:last-child{border-bottom:none}
 .pb{background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.4);border-radius:4px;padding:13px;display:flex;flex-direction:column;gap:10px;animation:glow .9s ease-in-out infinite alternate}
 @keyframes glow{from{box-shadow:0 0 4px rgba(0,204,255,.15)}to{box-shadow:0 0 18px rgba(0,204,255,.35)}}
-.pbt{font-family:‘Syne’,sans-serif;font-size:10px;font-weight:700;color:var(–b);letter-spacing:1px}
+.pbt{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--b);letter-spacing:1px}
 .pa{display:flex;gap:7px}
-.bex{flex:1;font-family:‘Space Mono’,monospace;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:9px;border:none;border-radius:3px;cursor:pointer;transition:all .15s}
-.bex.gc3{background:var(–g);color:var(–bg)}.bex.rc3{background:var(–r);color:#fff}.bex:hover{filter:brightness(1.2)}
-.bsk{background:transparent;color:var(–t2);border:1px solid var(–bd);font-family:‘Space Mono’,monospace;font-size:9px;padding:9px 13px;border-radius:3px;cursor:pointer;transition:all .15s}
-.bsk:hover{border-color:var(–r);color:var(–r)}
-.shr{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(–bd);border-radius:3px;background:var(–bg3);margin-bottom:4px;animation:fi2 .25s ease}
+.bex{flex:1;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:9px;border:none;border-radius:3px;cursor:pointer;transition:all .15s}
+.bex.gc3{background:var(--g);color:var(--bg)}.bex.rc3{background:var(--r);color:#fff}.bex:hover{filter:brightness(1.2)}
+.bsk{background:transparent;color:var(--t2);border:1px solid var(--bd);font-family:'Space Mono',monospace;font-size:9px;padding:9px 13px;border-radius:3px;cursor:pointer;transition:all .15s}
+.bsk:hover{border-color:var(--r);color:var(--r)}
+.shr{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--bd);border-radius:3px;background:var(--bg3);margin-bottom:4px;animation:fi2 .25s ease}
 @keyframes fi2{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 .db{font-size:8.5px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:2px;min-width:38px;text-align:center;display:inline-block}
-.dc{background:rgba(0,255,136,.12);color:var(–g)}.dp{background:rgba(255,61,95,.12);color:var(–r)}
+.dc{background:rgba(0,255,136,.12);color:var(--g)}.dp{background:rgba(255,61,95,.12);color:var(--r)}
 .lc{font-size:8px;padding:3px 7px;border-radius:2px;font-weight:700}
-.li{background:rgba(176,240,204,.06);color:var(–t2)}.ls{background:rgba(0,255,136,.1);color:var(–g)}
-.lw{background:rgba(255,170,0,.1);color:var(–y)}.le{background:rgba(255,61,95,.1);color:var(–r)}.lsg{background:rgba(0,204,255,.1);color:var(–b)}
-.pbar{height:4px;background:var(–bg3);border-radius:2px;overflow:hidden;margin-top:3px}
+.li{background:rgba(176,240,204,.06);color:var(--t2)}.ls{background:rgba(0,255,136,.1);color:var(--g)}
+.lw{background:rgba(255,170,0,.1);color:var(--y)}.le{background:rgba(255,61,95,.1);color:var(--r)}.lsg{background:rgba(0,204,255,.1);color:var(--b)}
+.pbar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-top:3px}
 .pbf{height:100%;border-radius:2px;transition:width .4s}
-.btcard{background:var(–bg3);border:1px solid rgba(0,204,255,.3);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.btcard{background:var(--bg3);border:1px solid rgba(0,204,255,.3);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px}
 .btgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.btstat{background:var(–card);border:1px solid var(–bd);border-radius:4px;padding:10px}
-.btsv{font-family:‘Syne’,sans-serif;font-size:18px;font-weight:800}
-.btsl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(–t3);margin-bottom:3px}
-.gate-on{display:inline-block;font-size:7.5px;padding:2px 8px;border-radius:2px;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(–g);letter-spacing:1px}
-.gate-off{display:inline-block;font-size:7.5px;padding:2px 8px;border-radius:2px;background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.3);color:var(–y);letter-spacing:1px}`;
+.btstat{background:var(--card);border:1px solid var(--bd);border-radius:4px;padding:10px}
+.btsv{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
+.btsl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:3px}
+.gate-on{display:inline-block;font-size:7.5px;padding:2px 8px;border-radius:2px;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--g);letter-spacing:1px}
+.gate-off{display:inline-block;font-size:7.5px;padding:2px 8px;border-radius:2px;background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.3);color:var(--y);letter-spacing:1px}`;
 
-```
-    return (
-      <div className="R">
-        <style>{CSS}</style>
+        return (
+          <div className="R">
+            <style>{CSS}</style>
 
-        {/* Header */}
-        <div className="H">
-          <div className="Lg">
-            <div className="Lh" />
-            <div>
-              {/* FIX: Updated branding from DerivBot to MarsBot by Marshall */}
-              <div className="Lt">Mars<em>Bot</em> <span style={{fontSize:9,color:"#ffaa00",fontFamily:"Space Mono",fontWeight:700}}>by Marshall</span></div>
-              <div className="Ls">V50 Optimised · 5-Indicator · MACD Gate · Backtest</div>
-            </div>
-          </div>
-          <div className="Hr">
-            <div className={`dot ${wsStatus === "connected" ? "on" : wsStatus === "error" ? "er" : ""}`} />
-            <span className="hl">{wsStatus}</span>
-            {macdGateEnabled ? <span className="gate-on">MACD GATE ON</span> : <span className="gate-off">MACD GATE OFF</span>}
-            {authorized && accountInfo && <span className="tag tag-g">{accountInfo.loginid}</span>}
-            {balance !== null && <span className="tag tag-b">{accountInfo?.currency || "USD"} {parseFloat(balance).toFixed(2)}</span>}
-          </div>
-        </div>
-
-        <div className="B">
-          {/* Sidebar */}
-          <div className="S">
-            {/* Connection */}
-            <div>
-              <div className="sl">Connection</div>
-              <div className="sc">
-                {!connected ? (
-                  <button className="btn bg" onClick={connect}>Connect</button>
-                ) : !authorized ? (
-                  <>
-                    <div className="fg"><div className="fl">API Token</div><input className="fi" type="password" placeholder="Paste token…" value={tokenInput} onChange={e => setTokenInput(e.target.value)} /></div>
-                    <button className="btn bg" onClick={authorize}>Authorize</button>
-                  </>
-                ) : <div style={{fontSize:10,color:"#00ff88"}}>✓ Authorized</div>}
-              </div>
-            </div>
-
-            {/* Symbol & Strategy */}
-            <div>
-              <div className="sl">Symbol</div>
-              <select className="fse" value={symbol} onChange={e => setSymbol(e.target.value)} disabled={botRunning}>
-                {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <div className="sl">Strategy</div>
-              <div className="fg">
-                <select className="fse" value={strategy} onChange={e => setStrategy(e.target.value)} disabled={botRunning}>
-                  {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <div style={{fontSize:8.5,color:"#4d9968",marginTop:3,lineHeight:1.5}}>{STRATEGIES.find(s => s.value === strategy)?.desc}</div>
-              </div>
-            </div>
-
-            {/* MACD Gate toggle */}
-            <div>
-              <div className="sl">MACD Confirmation Gate</div>
-              <div className="sc">
-                <div className="tr">
-                  <span className="tl">Require MACD alignment</span>
-                  <label className="tog">
-                    <input type="checkbox" checked={macdGateEnabled} onChange={e => setMacdGateEnabled(e.target.checked)} />
-                    <span className="tt" /><span className="tb" />
-                  </label>
-                </div>
-                <div style={{fontSize:8,color:macdGateEnabled?"#00ff88":"#ffaa00",lineHeight:1.5}}>
-                  {macdGateEnabled
-                    ? "ON — MACD histogram/crossover must align with signal direction. Blocks counter-trend trades."
-                    : "OFF — MACD is only a vote, not a hard gate. More signals, lower precision."}
+            {/* Header */}
+            <div className="H">
+              <div className="Lg">
+                <div className="Lh" />
+                <div>
+                  <div className="Lt">Deriv<em>Bot</em> <span style={{fontSize:9,color:"#ffaa00",fontFamily:"Space Mono",fontWeight:700}}>V3</span></div>
+                  <div className="Ls">V50 Optimised · 5-Indicator · MACD Gate · Backtest</div>
                 </div>
               </div>
-            </div>
-
-            {/* Exec Mode */}
-            <div>
-              <div className="sl">Execution Mode</div>
-              <div className="ms">
-                <button className={`mb ${execMode === "auto" ? "ma" : ""}`} onClick={() => setExecMode("auto")}>Auto</button>
-                <button className={`mb ${execMode === "manual" ? "mm" : ""}`} onClick={() => setExecMode("manual")}>Manual</button>
-              </div>
-              {/* FIX: show dynamic minStrength value instead of hardcoded 78/65 */}
-              <div style={{fontSize:8,color:"#2a5438",marginTop:5}}>
-                {execMode === "auto"
-                  ? `Auto fires at ≥${minStrength}% (3/5 indicators)`
-                  : `Alert at ≥${minStrength}% (2/5) — you confirm`}
+              <div className="Hr">
+                <div className={`dot ${wsStatus === "connected" ? "on" : wsStatus === "error" ? "er" : ""}`} />
+                <span className="hl">{wsStatus}</span>
+                {macdGateEnabled ? <span className="gate-on">MACD GATE ON</span> : <span className="gate-off">MACD GATE OFF</span>}
+                {authorized && accountInfo && <span className="tag tag-g">{accountInfo.loginid}</span>}
+                {balance !== null && <span className="tag tag-b">{accountInfo?.currency || "USD"} {parseFloat(balance).toFixed(2)}</span>}
               </div>
             </div>
 
-            {/* Trade Config */}
-            <div>
-              <div className="sl">Trade Config</div>
-              <div className="sc">
-                <div className="fg"><div className="fl">Stake ($)</div><input className="fi" type="number" min="0.35" step="0.5" value={stake} onChange={e => setStake(e.target.value)} disabled={botRunning} /></div>
-                <div className="fg"><div className="fl">Duration (applied to every trade)</div>
-                  <select className="fse" value={duration} onChange={e => setDuration(parseInt(e.target.value))} disabled={botRunning}>
-                    {DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            <div className="B">
+              {/* Sidebar */}
+              <div className="S">
+                {/* Connection */}
+                <div>
+                  <div className="sl">Connection</div>
+                  <div className="sc">
+                    {!connected ? (
+                      <button className="btn bg" onClick={connect}>Connect</button>
+                    ) : !authorized ? (
+                      <>
+                        <div className="fg"><div className="fl">API Token</div><input className="fi" type="password" placeholder="Paste token…" value={tokenInput} onChange={e => setTokenInput(e.target.value)} /></div>
+                        <button className="btn bg" onClick={authorize}>Authorize</button>
+                      </>
+                    ) : <div style={{fontSize:10,color:"#00ff88"}}>✓ Authorized</div>}
+                  </div>
+                </div>
+
+                {/* Symbol & Strategy */}
+                <div>
+                  <div className="sl">Symbol</div>
+                  <select className="fse" value={symbol} onChange={e => setSymbol(e.target.value)} disabled={botRunning}>
+                    {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
-                <div className="fg"><div className="fl">Min Signal Strength (%)</div><input className="fi" type="number" min="60" max="99" value={minStrength} onChange={e => setMinStrength(e.target.value)} /></div>
-              </div>
-            </div>
-
-            {/* Risk */}
-            <div>
-              <div className="sl">Risk Management</div>
-              <div className="sc">
-                <div className="fg"><div className="fl">Max Daily Loss (%)</div><input className="fi" type="number" min="1" max="50" value={maxDailyLoss} onChange={e => setMaxDailyLoss(e.target.value)} /></div>
-                <div className="fg"><div className="fl">Max Trades / Day</div><input className="fi" type="number" min="1" max="100" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} /></div>
-                <div className="tr"><span className="tl">Martingale</span>
-                  <label className="tog"><input type="checkbox" checked={martingale} onChange={e => setMartingale(e.target.checked)} /><span className="tt" /><span className="tb" /></label>
+                <div>
+                  <div className="sl">Strategy</div>
+                  <div className="fg">
+                    <select className="fse" value={strategy} onChange={e => setStrategy(e.target.value)} disabled={botRunning}>
+                      {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                    <div style={{fontSize:8.5,color:"#4d9968",marginTop:3,lineHeight:1.5}}>{STRATEGIES.find(s => s.value === strategy)?.desc}</div>
+                  </div>
                 </div>
-                {martingale && <div className="fg"><div className="fl">Multiplier</div><input className="fi" type="number" min="1.2" max="3" step="0.1" value={martMul} onChange={e => setMartMul(e.target.value)} /></div>}
-              </div>
-            </div>
 
-            {/* Bot Control */}
-            <div>
-              <div className="sl">Bot Control</div>
-              <div className="sc">
-                {!botRunning
-                  ? <button className="btn bg" disabled={!authorized} onClick={startBot}>▶ Start Bot</button>
-                  : <button className="btn bst" onClick={stopBot}>■ Stop Bot</button>}
-                <button className="btn bbt" onClick={runBt} disabled={btRunning}>
-                  {btRunning ? "Running…" : "⊞ Run Backtest"}
-                </button>
-                <button className="btn bgh bsm" onClick={resetDay}>Reset Daily Stats</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Panel */}
-          <div className="M">
-            {/* Stats row */}
-            <div className="sg">
-              <div className="st">
-                <div className="stl">Price</div>
-                <div className="stv cb">{currentPrice ? currentPrice.toFixed(4) : "—"}</div>
-                <div className="sts">{symInfo?.label}</div>
-              </div>
-              <div className="st">
-                <div className="stl">Win Rate</div>
-                <div className={`stv ${winRate >= 55 ? "cg" : winRate >= 45 ? "cy" : "cr"}`}>{winRate !== null ? `${winRate}%` : "—"}</div>
-                <div className="sts">{trades.length} trade{trades.length !== 1 ? "s" : ""}</div>
-              </div>
-              <div className="st">
-                <div className="stl">Total P&L</div>
-                <div className={`stv ${totalPnL >= 0 ? "cg" : "cr"}`}>{totalPnL >= 0 ? "+" : ""}{totalPnL.toFixed(2)}</div>
-                <div className="sts">Daily: {dailyPnL >= 0 ? "+" : ""}{dailyPnL.toFixed(2)}</div>
-              </div>
-              <div className="st">
-                <div className="stl">Consec. Losses</div>
-                <div className={`stv ${consecLosses >= 3 ? "cr" : consecLosses >= 2 ? "cy" : "cg"}`}>{consecLosses}</div>
-                <div className="sts">Stops at 4</div>
-              </div>
-            </div>
-
-            {/* Risk bars */}
-            <div className="card">
-              <div style={{display:"flex",gap:14}}>
-                {[
-                  { label: "Daily Loss Limit", val: lossRatio, color: riskColor, sub: `${lossRatio.toFixed(0)}%` },
-                  { label: "Trade Count", val: tradeRatio, color: "#00ccff", sub: `${todayTrades}/${maxTrades}` },
-                  { label: "Prices Collected", val: Math.min(100, (priceHistory.length / 80) * 100), color: "#ffaa00", sub: `${priceHistory.length}/80+` },
-                ].map(({ label, val, color, sub }) => (
-                  <div key={label} style={{flex:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                      <span style={{fontSize:8,color:"#4d9968",letterSpacing:1,textTransform:"uppercase"}}>{label}</span>
-                      <span style={{fontSize:9,color}}>{sub}</span>
+                {/* NEW: MACD Gate toggle */}
+                <div>
+                  <div className="sl">MACD Confirmation Gate</div>
+                  <div className="sc">
+                    <div className="tr">
+                      <span className="tl">Require MACD alignment</span>
+                      <label className="tog">
+                        <input type="checkbox" checked={macdGateEnabled} onChange={e => setMacdGateEnabled(e.target.checked)} />
+                        <span className="tt" /><span className="tb" />
+                      </label>
                     </div>
-                    <div className="pbar"><div className="pbf" style={{width:`${val}%`,background:color}} /></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pending signal */}
-            {pendingSignal && (
-              <div className="pb">
-                <div className="pbt">⚡ Signal Awaiting Confirmation</div>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <div>
-                    <div className={`sd ${pendingSignal.direction === "CALL" ? "cg2" : "cr2"}`}>{pendingSignal.direction}</div>
-                    <div className="ss2">{pendingSignal.summary}</div>
-                    {pendingSignal.trendBias && <div style={{fontSize:8,color:"#4d9968",marginTop:3}}>Trend: {pendingSignal.trendBias}</div>}
-                    {pendingSignal.macdGate && <div style={{fontSize:8,color:"#00ff88",marginTop:2}}>MACD: {pendingSignal.macdGate}</div>}
-                    <div style={{fontSize:8,color:"#00ccff",marginTop:2}}>Duration: {duration} min</div>
-                  </div>
-                  <div style={{flex:1}} />
-                  <StrengthGauge value={pendingSignal.strength} />
-                </div>
-                <div className="pa">
-                  <button className={`bex ${pendingSignal.direction === "CALL" ? "gc3" : "rc3"}`} onClick={() => placeTrade(pendingSignal)}>Execute {pendingSignal.direction}</button>
-                  <button className="bsk" onClick={dismissSignal}>Dismiss</button>
-                </div>
-              </div>
-            )}
-
-            {/* Tabs */}
-            <div className="card" style={{flex:1}}>
-              <div className="tabs">
-                {[["signal","Signal"],["backtest","Backtest"],["wrlog","WR Log"],["trades","Trades"],["open","Open"],["logs","Logs"]].map(([v,l]) => (
-                  <button key={v} className={`tab ${activeTab === v ? "on" : ""}`} onClick={() => setActiveTab(v)}>
-                    {l}
-                    {v === "open" && openContracts.length > 0 && <span className="cb2">{openContracts.length}</span>}
-                    {v === "trades" && trades.length > 0 && <span className="cb2">{trades.length}</span>}
-                    {v === "backtest" && btResult && !btResult.error && <span className="cb2">✓</span>}
-                    {v === "wrlog" && wrLog.length > 0 && <span className="cb2">{wrLog.length}</span>}
-                  </button>
-                ))}
-              </div>
-
-              {/* ── Signal Tab ── */}
-              {activeTab === "signal" && (
-                <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:14}}>
-                    <div className="sb">
-                      <div className={`sbi ${botRunning ? "on" : ""}`} />
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Live Price — {symInfo?.tag} · {pricesRef.current.length} ticks · {duration}min trades</div>
-                        <Sparkline data={priceHistory.slice(-60)} />
-                      </div>
-                      <div style={{fontSize:11,color:"#00ccff",fontFamily:"Syne",fontWeight:700}}>{currentPrice ? currentPrice.toFixed(4) : "—"}</div>
+                    <div style={{fontSize:8,color:macdGateEnabled?"#00ff88":"#ffaa00",lineHeight:1.5}}>
+                      {macdGateEnabled
+                        ? "ON — MACD histogram/crossover must align with signal direction. Blocks counter-trend trades."
+                        : "OFF — MACD is only a vote, not a hard gate. More signals, lower precision."}
                     </div>
                   </div>
-                  {liveSignal && (
-                    <div className="sh">
-                      <div className={`sm ${liveSignal.direction === "CALL" ? "sc2" : "sp"}`}>
-                        <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase"}}>Live Signal</div>
-                        <div className={`sd ${liveSignal.direction === "CALL" ? "cg2" : "cr2"}`}>{liveSignal.direction}</div>
-                        <div className="ss2">{liveSignal.summary}</div>
-                        {liveSignal.trendBias && <div style={{fontSize:8,color:"#4d9968"}}>Trend: {liveSignal.trendBias}</div>}
-                        {liveSignal.macdGate && <div style={{fontSize:8,color:"#00ff88"}}>✓ {liveSignal.macdGate}</div>}
-                        {liveSignal.agreeCount && <div style={{fontSize:8,color:"#ffaa00"}}>{liveSignal.agreeCount}/5 agree</div>}
-                      </div>
-                      <div className="gc"><div className="gl">Strength</div><StrengthGauge value={liveSignal.strength} size={80} /></div>
+                </div>
+
+                {/* Exec Mode */}
+                <div>
+                  <div className="sl">Execution Mode</div>
+                  <div className="ms">
+                    <button className={`mb ${execMode === "auto" ? "ma" : ""}`} onClick={() => setExecMode("auto")}>Auto</button>
+                    <button className={`mb ${execMode === "manual" ? "mm" : ""}`} onClick={() => setExecMode("manual")}>Manual</button>
+                  </div>
+                  <div style={{fontSize:8,color:"#2a5438",marginTop:5}}>{execMode === "auto" ? "Auto fires at ≥78% (3/5 indicators)" : "Alert at ≥65% (2/5) — you confirm"}</div>
+                </div>
+
+                {/* Trade Config */}
+                <div>
+                  <div className="sl">Trade Config</div>
+                  <div className="sc">
+                    <div className="fg"><div className="fl">Stake ($)</div><input className="fi" type="number" min="0.35" step="0.5" value={stake} onChange={e => setStake(e.target.value)} disabled={botRunning} /></div>
+                    <div className="fg"><div className="fl">Duration</div>
+                      <select className="fse" value={duration} onChange={e => setDuration(parseInt(e.target.value))} disabled={botRunning}>
+                        {DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                      </select>
                     </div>
-                  )}
-                  {liveSignal?.components && (
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      {Object.entries(liveSignal.components).map(([key, c]) => (
-                        <Pill key={key} label={key.toUpperCase()} score={c.score} agrees={c.agrees} vote={c.vote} />
-                      ))}
+                    <div className="fg"><div className="fl">Min Signal Strength (%)</div><input className="fi" type="number" min="60" max="99" value={minStrength} onChange={e => setMinStrength(e.target.value)} /></div>
+                  </div>
+                </div>
+
+                {/* Risk */}
+                <div>
+                  <div className="sl">Risk Management</div>
+                  <div className="sc">
+                    <div className="fg"><div className="fl">Max Daily Loss (%)</div><input className="fi" type="number" min="1" max="50" value={maxDailyLoss} onChange={e => setMaxDailyLoss(e.target.value)} /></div>
+                    <div className="fg"><div className="fl">Max Trades / Day</div><input className="fi" type="number" min="1" max="100" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} /></div>
+                    <div className="tr"><span className="tl">Martingale</span>
+                      <label className="tog"><input type="checkbox" checked={martingale} onChange={e => setMartingale(e.target.checked)} /><span className="tt" /><span className="tb" /></label>
                     </div>
-                  )}
-                  <div>
-                    <div className="ct">Recent Signals</div>
-                    {signals.length === 0
-                      ? <div style={{color:"#2a5438",fontSize:10}}>No signals yet. Bot needs 80 ticks to warm up. {pricesRef.current.length < 80 ? `(${pricesRef.current.length}/80 collected)` : ""}</div>
-                      : signals.slice(0, 10).map(s => (
-                        <div key={s.id} className="shr">
-                          <span className={`db ${s.direction === "CALL" ? "dc" : "dp"}`}>{s.direction}</span>
-                          <span style={{fontSize:9,color:strColor(s.strength),fontWeight:700}}>{s.strength}%</span>
-                          <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{s.summary}</span>
-                          {s.macdGate && <span style={{fontSize:7.5,color:"#00ff88"}}>MACD✓</span>}
-                          <span style={{fontSize:8,color:"#2a5438"}}>{s.time}</span>
-                          {s.acted && <span style={{fontSize:7.5,color:"#00ff88"}}>AUTO</span>}
+                    {martingale && <div className="fg"><div className="fl">Multiplier</div><input className="fi" type="number" min="1.2" max="3" step="0.1" value={martMul} onChange={e => setMartMul(e.target.value)} /></div>}
+                  </div>
+                </div>
+
+                {/* Bot Control */}
+                <div>
+                  <div className="sl">Bot Control</div>
+                  <div className="sc">
+                    {!botRunning
+                      ? <button className="btn bg" disabled={!authorized} onClick={startBot}>▶ Start Bot</button>
+                      : <button className="btn bst" onClick={stopBot}>■ Stop Bot</button>}
+                    <button className="btn bbt" onClick={runBt} disabled={btRunning}>
+                      {btRunning ? "Running…" : "⊞ Run Backtest"}
+                    </button>
+                    <button className="btn bgh bsm" onClick={resetDay}>Reset Daily Stats</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Panel */}
+              <div className="M">
+                {/* Stats row */}
+                <div className="sg">
+                  <div className="st">
+                    <div className="stl">Price</div>
+                    <div className="stv cb">{currentPrice ? currentPrice.toFixed(4) : "—"}</div>
+                    <div className="sts">{symInfo?.label}</div>
+                  </div>
+                  <div className="st">
+                    <div className="stl">Win Rate</div>
+                    <div className={`stv ${winRate >= 55 ? "cg" : winRate >= 45 ? "cy" : "cr"}`}>{winRate !== null ? `${winRate}%` : "—"}</div>
+                    <div className="sts">{trades.length} trade{trades.length !== 1 ? "s" : ""}</div>
+                  </div>
+                  <div className="st">
+                    <div className="stl">Total P&L</div>
+                    <div className={`stv ${totalPnL >= 0 ? "cg" : "cr"}`}>{totalPnL >= 0 ? "+" : ""}{totalPnL.toFixed(2)}</div>
+                    <div className="sts">Daily: {dailyPnL >= 0 ? "+" : ""}{dailyPnL.toFixed(2)}</div>
+                  </div>
+                  <div className="st">
+                    <div className="stl">Consec. Losses</div>
+                    <div className={`stv ${consecLosses >= 3 ? "cr" : consecLosses >= 2 ? "cy" : "cg"}`}>{consecLosses}</div>
+                    <div className="sts">Stops at 4</div>
+                  </div>
+                </div>
+
+                {/* Risk bars */}
+                <div className="card">
+                  <div style={{display:"flex",gap:14}}>
+                    {[
+                      { label: "Daily Loss Limit", val: lossRatio, color: riskColor, sub: `${lossRatio.toFixed(0)}%` },
+                      { label: "Trade Count", val: tradeRatio, color: "#00ccff", sub: `${todayTrades}/${maxTrades}` },
+                      { label: "Prices Collected", val: Math.min(100, (priceHistory.length / 80) * 100), color: "#ffaa00", sub: `${priceHistory.length}/80+` },
+                    ].map(({ label, val, color, sub }) => (
+                      <div key={label} style={{flex:1}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                          <span style={{fontSize:8,color:"#4d9968",letterSpacing:1,textTransform:"uppercase"}}>{label}</span>
+                          <span style={{fontSize:9,color}}>{sub}</span>
                         </div>
-                      ))
-                    }
+                        <div className="pbar"><div className="pbf" style={{width:`${val}%`,background:color}} /></div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              {/* ── Backtest Tab ── */}
-              {activeTab === "backtest" && (
-                <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                  <div style={{fontSize:9,color:"#4d9968",lineHeight:1.7}}>
-                    Replays collected price history through the signal engine. Uses <strong style={{color:"#b0f0cc"}}>{duration} min</strong> trade duration (~{Math.max(10, duration * 45)} tick lookahead at ≈45 ticks/min for Deriv volatility indices). MACD gate is <strong style={{color:macdGateEnabled?"#00ff88":"#ffaa00"}}>{macdGateEnabled?"ON":"OFF"}</strong>.<br />
-                    Collect at least 120+ ticks before running (currently: <strong style={{color:"#b0f0cc"}}>{pricesRef.current.length}</strong>).
-                  </div>
-                  <button className="btn bbt" onClick={runBt} disabled={btRunning || pricesRef.current.length < 120}>
-                    {btRunning ? "⟳ Running backtest…" : `⊞ Run Backtest on ${pricesRef.current.length} ticks`}
-                  </button>
-
-                  {btResult && !btResult.error && (
-                    <div className="btcard">
-                      <div className="btgrid">
-                        {[
-                          { label: "Total Signals", val: btResult.total, color: "#00ccff" },
-                          { label: "Win Rate", val: `${btResult.winRate}%`, color: parseFloat(btResult.winRate) >= 55 ? "#00ff88" : parseFloat(btResult.winRate) >= 45 ? "#ffaa00" : "#ff3d5f" },
-                          { label: "Profit Factor", val: btResult.profitFactor, color: parseFloat(btResult.profitFactor) >= 1.0 ? "#00ff88" : "#ff3d5f" },
-                          { label: "Wins", val: btResult.wins, color: "#00ff88" },
-                          { label: "Losses", val: btResult.losses, color: "#ff3d5f" },
-                          { label: "Avg Strength", val: `${btResult.avgStrength}%`, color: "#ffaa00" },
-                          { label: "CALL Win Rate", val: `${btResult.callWR}%`, color: "#00ff88" },
-                          { label: "PUT Win Rate", val: `${btResult.putWR}%`, color: "#ff3d5f" },
-                          { label: "Max Loss Streak", val: btResult.maxLossStreak, color: btResult.maxLossStreak >= 4 ? "#ff3d5f" : "#ffaa00" },
-                        ].map(({ label, val, color }) => (
-                          <div key={label} className="btstat">
-                            <div className="btsl">{label}</div>
-                            <div className="btsv" style={{color}}>{val}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{background:btResult.rolling.length > 0 ? "var(--bg3)":"transparent",border:"1px solid var(--bd)",borderRadius:4,padding:10}}>
-                        <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Rolling 10-Signal Win Rate</div>
-                        <WRSparkline data={btResult.rolling} width={320} height={50} />
-                        <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-                          <span style={{fontSize:8,color:"#2a5438"}}>0%</span>
-                          <span style={{fontSize:8,color:"#2a5438"}}>50% target</span>
-                          <span style={{fontSize:8,color:"#2a5438"}}>100%</span>
-                        </div>
-                      </div>
-
+                {/* Pending signal */}
+                {pendingSignal && (
+                  <div className="pb">
+                    <div className="pbt">⚡ Signal Awaiting Confirmation</div>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
                       <div>
-                        <div className="ct">Signal Log (last 20)</div>
-                        {btResult.results.slice(0, 20).map((r, i) => (
-                          <div key={i} className="ir">
-                            <span className={`db ${r.direction === "CALL" ? "dc" : "dp"}`}>{r.direction}</span>
-                            <span style={{fontSize:8,color:strColor(r.strength),fontWeight:700}}>{r.strength}%</span>
-                            <span style={{fontSize:7.5,color:"#4d9968",flex:1}}>{r.macdGate}</span>
-                            <span style={{fontSize:8,color:"#2a5438"}}>Δ{r.change > 0 ? "+" : ""}{r.change.toFixed(4)}</span>
-                            <span style={{fontSize:8,fontWeight:700,color:r.won?"#00ff88":"#ff3d5f"}}>{r.won ? "WIN" : "LOSS"}</span>
+                        <div className={`sd ${pendingSignal.direction === "CALL" ? "cg2" : "cr2"}`}>{pendingSignal.direction}</div>
+                        <div className="ss2">{pendingSignal.summary}</div>
+                        {pendingSignal.trendBias && <div style={{fontSize:8,color:"#4d9968",marginTop:3}}>Trend: {pendingSignal.trendBias}</div>}
+                        {pendingSignal.macdGate && <div style={{fontSize:8,color:"#00ff88",marginTop:2}}>MACD: {pendingSignal.macdGate}</div>}
+                      </div>
+                      <div style={{flex:1}} />
+                      <StrengthGauge value={pendingSignal.strength} />
+                    </div>
+                    <div className="pa">
+                      <button className={`bex ${pendingSignal.direction === "CALL" ? "gc3" : "rc3"}`} onClick={() => placeTrade(pendingSignal)}>Execute {pendingSignal.direction}</button>
+                      <button className="bsk" onClick={dismissSignal}>Dismiss</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabs */}
+                <div className="card" style={{flex:1}}>
+                  <div className="tabs">
+                    {[["signal","Signal"],["backtest","Backtest"],["wrlog","WR Log"],["trades","Trades"],["open","Open"],["logs","Logs"]].map(([v,l]) => (
+                      <button key={v} className={`tab ${activeTab === v ? "on" : ""}`} onClick={() => setActiveTab(v)}>
+                        {l}
+                        {v === "open" && openContracts.length > 0 && <span className="cb2">{openContracts.length}</span>}
+                        {v === "trades" && trades.length > 0 && <span className="cb2">{trades.length}</span>}
+                        {v === "backtest" && btResult && !btResult.error && <span className="cb2">✓</span>}
+                        {v === "wrlog" && wrLog.length > 0 && <span className="cb2">{wrLog.length}</span>}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Signal Tab ── */}
+                  {activeTab === "signal" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                      <div style={{display:"flex",alignItems:"center",gap:14}}>
+                        <div className="sb">
+                          <div className={`sbi ${botRunning ? "on" : ""}`} />
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Live Price — {symInfo?.tag} · {pricesRef.current.length} ticks</div>
+                            <Sparkline data={priceHistory.slice(-60)} />
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {btResult && btResult.error && (
-                    <div style={{color:"#ff3d5f",fontSize:10,padding:"10px",background:"rgba(255,61,95,.07)",border:"1px solid rgba(255,61,95,.2)",borderRadius:4}}>⚠ {btResult.error}</div>
-                  )}
-                  {!btResult && (
-                    <div style={{color:"#2a5438",fontSize:10}}>No backtest run yet. Collect price data by connecting and starting the bot.</div>
-                  )}
-                </div>
-              )}
-
-              {/* ── WR Log Tab ── */}
-              {activeTab === "wrlog" && (
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <div style={{fontSize:8.5,color:"#4d9968",lineHeight:1.6}}>
-                    Per-session win rate snapshots logged every 5 trades and on bot stop. Rolling chart shows live session WR trend.
-                  </div>
-                  {liveRollingWR.length >= 2 && (
-                    <div style={{background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:4,padding:10}}>
-                      <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Live Rolling 10-Trade WR</div>
-                      <WRSparkline data={liveRollingWR} width={300} height={45} />
-                      <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-                        <span style={{fontSize:8,color:"#2a5438"}}>Session start</span>
-                        <span style={{fontSize:8,color:"#2a5438"}}>Now</span>
-                      </div>
-                    </div>
-                  )}
-                  {trades.length > 0 && (
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                      {[
-                        { label: "Session WR", val: `${winRate !== null ? winRate : "—"}%`, color: winRate >= 55 ? "#00ff88" : winRate >= 45 ? "#ffaa00" : "#ff3d5f" },
-                        { label: "Session P&L", val: `${totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}`, color: totalPnL >= 0 ? "#00ff88" : "#ff3d5f" },
-                        { label: "Trades", val: trades.length, color: "#00ccff" },
-                      ].map(({ label, val, color }) => (
-                        <div key={label} className="btstat"><div className="btsl">{label}</div><div className="btsv" style={{color}}>{val}</div></div>
-                      ))}
-                    </div>
-                  )}
-                  <div>
-                    <div className="ct">Win Rate Log Snapshots</div>
-                    {wrLog.length === 0
-                      ? <div style={{color:"#2a5438",fontSize:10}}>No snapshots yet. Logged every 5 trades and on bot stop.</div>
-                      : [...wrLog].reverse().map((e, i) => (
-                        <div key={i} className="ir">
-                          <span style={{fontSize:8,color:"#2a5438",flexShrink:0}}>{e.time}</span>
-                          <span style={{fontSize:9,fontWeight:700,color:parseFloat(e.wr)>=55?"#00ff88":parseFloat(e.wr)>=45?"#ffaa00":"#ff3d5f"}}>{e.wr}%</span>
-                          <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{e.wins}W / {e.total - e.wins}L of {e.total}</span>
-                          <span style={{fontSize:8.5,fontWeight:700,color:parseFloat(e.pnl)>=0?"#00ff88":"#ff3d5f"}}>{parseFloat(e.pnl)>=0?"+":""}{e.pnl}</span>
-                          {e.isFinal && <span style={{fontSize:7.5,background:"rgba(255,170,0,.15)",color:"#ffaa00",padding:"1px 5px",borderRadius:2}}>FINAL</span>}
+                          <div style={{fontSize:11,color:"#00ccff",fontFamily:"Syne",fontWeight:700}}>{currentPrice ? currentPrice.toFixed(4) : "—"}</div>
                         </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-
-              {/* ── Trades Tab ── */}
-              {activeTab === "trades" && (
-                <div>
-                  {trades.length === 0
-                    ? <div style={{color:"#2a5438",fontSize:10}}>No trades yet.</div>
-                    : trades.map(t => (
-                      <div key={t.id} className="ir">
-                        <span className={`db ${t.direction === "CALL" ? "dc" : "dp"}`}>{t.direction}</span>
-                        <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{t.symbol} · {t.time}</span>
-                        <span style={{fontSize:9,fontWeight:700,color:t.won?"#00ff88":"#ff3d5f"}}>{t.won?"+":""}{t.profit.toFixed(2)}</span>
-                        <span style={{fontSize:7.5,color:t.won?"#00ff88":"#ff3d5f"}}>{t.won?"WIN":"LOSS"}</span>
                       </div>
-                    ))
-                  }
-                </div>
-              )}
-
-              {/* ── Open Contracts Tab ── */}
-              {activeTab === "open" && (
-                <div>
-                  {openContracts.length === 0
-                    ? <div style={{color:"#2a5438",fontSize:10}}>No open contracts.</div>
-                    : openContracts.map(c => (
-                      <div key={c.id} className="ir">
-                        <span className={`db ${c.direction === "CALL" ? "dc" : "dp"}`}>{c.direction}</span>
-                        <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>#{c.id} · {c.symbol}</span>
-                        <span style={{fontSize:9,color:"#00ccff"}}>Stake {c.buyPrice}</span>
-                        <span style={{fontSize:7.5,color:"#2a5438"}}>{c.openTime}</span>
+                      {liveSignal && (
+                        <div className="sh">
+                          <div className={`sm ${liveSignal.direction === "CALL" ? "sc2" : "sp"}`}>
+                            <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase"}}>Live Signal</div>
+                            <div className={`sd ${liveSignal.direction === "CALL" ? "cg2" : "cr2"}`}>{liveSignal.direction}</div>
+                            <div className="ss2">{liveSignal.summary}</div>
+                            {liveSignal.trendBias && <div style={{fontSize:8,color:"#4d9968"}}>Trend: {liveSignal.trendBias}</div>}
+                            {liveSignal.macdGate && <div style={{fontSize:8,color:"#00ff88"}}>✓ {liveSignal.macdGate}</div>}
+                            {liveSignal.agreeCount && <div style={{fontSize:8,color:"#ffaa00"}}>{liveSignal.agreeCount}/5 agree</div>}
+                          </div>
+                          <div className="gc"><div className="gl">Strength</div><StrengthGauge value={liveSignal.strength} size={80} /></div>
+                        </div>
+                      )}
+                      {liveSignal?.components && (
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {Object.entries(liveSignal.components).map(([key, c]) => (
+                            <Pill key={key} label={key.toUpperCase()} score={c.score} agrees={c.agrees} vote={c.vote} />
+                          ))}
+                        </div>
+                      )}
+                      <div>
+                        <div className="ct">Recent Signals</div>
+                        {signals.length === 0
+                          ? <div style={{color:"#2a5438",fontSize:10}}>No signals yet. Bot needs 80 ticks to warm up. {pricesRef.current.length < 80 ? `(${pricesRef.current.length}/80 collected)` : ""}</div>
+                          : signals.slice(0, 10).map(s => (
+                            <div key={s.id} className="shr">
+                              <span className={`db ${s.direction === "CALL" ? "dc" : "dp"}`}>{s.direction}</span>
+                              <span style={{fontSize:9,color:strColor(s.strength),fontWeight:700}}>{s.strength}%</span>
+                              <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{s.summary}</span>
+                              {s.macdGate && <span style={{fontSize:7.5,color:"#00ff88"}}>MACD✓</span>}
+                              <span style={{fontSize:8,color:"#2a5438"}}>{s.time}</span>
+                              {s.acted && <span style={{fontSize:7.5,color:"#00ff88"}}>AUTO</span>}
+                            </div>
+                          ))
+                        }
                       </div>
-                    ))
-                  }
-                </div>
-              )}
+                    </div>
+                  )}
 
-              {/* ── Logs Tab ── */}
-              {activeTab === "logs" && (
-                <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                  {logs.length === 0
-                    ? <div style={{color:"#2a5438",fontSize:10}}>No logs yet.</div>
-                    : logs.map(l => (
-                      <div key={l.id} style={{display:"flex",alignItems:"baseline",gap:7}}>
-                        <span style={{fontSize:8,color:"#2a5438",flexShrink:0}}>{l.time}</span>
-                        <span className={`lc l${l.type==="signal"?"sg":l.type.charAt(0)}`}>{l.type.toUpperCase()}</span>
-                        <span style={{fontSize:9,color:"#b0f0cc"}}>{l.msg}</span>
+                  {/* ── Backtest Tab (NEW) ── */}
+                  {activeTab === "backtest" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                      <div style={{fontSize:9,color:"#4d9968",lineHeight:1.7}}>
+                        Replays your collected price history through the signal engine. Simulates trade outcomes by checking if price moved in signal direction after {duration} min (~{Math.max(10, duration * 4)} ticks). MACD gate is <strong style={{color:macdGateEnabled?"#00ff88":"#ffaa00"}}>{macdGateEnabled?"ON":"OFF"}</strong>.<br />
+                        Collect at least 120+ ticks before running (currently: <strong style={{color:"#b0f0cc"}}>{pricesRef.current.length}</strong>).
                       </div>
-                    ))
-                  }
+                      <button className="btn bbt" onClick={runBt} disabled={btRunning || pricesRef.current.length < 120}>
+                        {btRunning ? "⟳ Running backtest…" : `⊞ Run Backtest on ${pricesRef.current.length} ticks`}
+                      </button>
+
+                      {btResult && !btResult.error && (
+                        <div className="btcard">
+                          {/* Key metrics */}
+                          <div className="btgrid">
+                            {[
+                              { label: "Total Signals", val: btResult.total, color: "#00ccff" },
+                              { label: "Win Rate", val: `${btResult.winRate}%`, color: parseFloat(btResult.winRate) >= 55 ? "#00ff88" : parseFloat(btResult.winRate) >= 45 ? "#ffaa00" : "#ff3d5f" },
+                              { label: "Profit Factor", val: btResult.profitFactor, color: parseFloat(btResult.profitFactor) >= 1.0 ? "#00ff88" : "#ff3d5f" },
+                              { label: "Wins", val: btResult.wins, color: "#00ff88" },
+                              { label: "Losses", val: btResult.losses, color: "#ff3d5f" },
+                              { label: "Avg Strength", val: `${btResult.avgStrength}%`, color: "#ffaa00" },
+                              { label: "CALL Win Rate", val: `${btResult.callWR}%`, color: "#00ff88" },
+                              { label: "PUT Win Rate", val: `${btResult.putWR}%`, color: "#ff3d5f" },
+                              { label: "Max Loss Streak", val: btResult.maxLossStreak, color: btResult.maxLossStreak >= 4 ? "#ff3d5f" : "#ffaa00" },
+                            ].map(({ label, val, color }) => (
+                              <div key={label} className="btstat">
+                                <div className="btsl">{label}</div>
+                                <div className="btsv" style={{color}}>{val}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Rolling WR chart */}
+                          <div style={{background:btResult.rolling.length > 0 ? "var(--bg3)":"transparent",border:"1px solid var(--bd)",borderRadius:4,padding:10}}>
+                            <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Rolling 10-Signal Win Rate</div>
+                            <WRSparkline data={btResult.rolling} width={320} height={50} />
+                            <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                              <span style={{fontSize:8,color:"#2a5438"}}>0%</span>
+                              <span style={{fontSize:8,color:"#2a5438"}}>50% target</span>
+                              <span style={{fontSize:8,color:"#2a5438"}}>100%</span>
+                            </div>
+                          </div>
+
+                          {/* Signal log */}
+                          <div>
+                            <div className="ct">Signal Log (last 20)</div>
+                            {btResult.results.slice(0, 20).map((r, i) => (
+                              <div key={i} className="ir">
+                                <span className={`db ${r.direction === "CALL" ? "dc" : "dp"}`}>{r.direction}</span>
+                                <span style={{fontSize:8,color:strColor(r.strength),fontWeight:700}}>{r.strength}%</span>
+                                <span style={{fontSize:7.5,color:"#4d9968",flex:1}}>{r.macdGate}</span>
+                                <span style={{fontSize:8,color:"#2a5438"}}>Δ{r.change > 0 ? "+" : ""}{r.change.toFixed(4)}</span>
+                                <span style={{fontSize:8,fontWeight:700,color:r.won?"#00ff88":"#ff3d5f"}}>{r.won ? "WIN" : "LOSS"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {btResult && btResult.error && (
+                        <div style={{color:"#ff3d5f",fontSize:10,padding:"10px",background:"rgba(255,61,95,.07)",border:"1px solid rgba(255,61,95,.2)",borderRadius:4}}>⚠ {btResult.error}</div>
+                      )}
+                      {!btResult && (
+                        <div style={{color:"#2a5438",fontSize:10}}>No backtest run yet. Collect price data by connecting and starting the bot (no trades placed during collection).</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── WR Log Tab (NEW) ── */}
+                  {activeTab === "wrlog" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      <div style={{fontSize:8.5,color:"#4d9968",lineHeight:1.6}}>
+                        Per-session win rate snapshots logged every 5 trades and on bot stop. Rolling chart shows live session WR trend.
+                      </div>
+                      {/* Live rolling WR chart */}
+                      {liveRollingWR.length >= 2 && (
+                        <div style={{background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:4,padding:10}}>
+                          <div style={{fontSize:8,color:"#4d9968",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Live Rolling 10-Trade WR</div>
+                          <WRSparkline data={liveRollingWR} width={300} height={45} />
+                          <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                            <span style={{fontSize:8,color:"#2a5438"}}>Session start</span>
+                            <span style={{fontSize:8,color:"#2a5438"}}>Now</span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Summary stats */}
+                      {trades.length > 0 && (
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                          {[
+                            { label: "Session WR", val: `${winRate !== null ? winRate : "—"}%`, color: winRate >= 55 ? "#00ff88" : winRate >= 45 ? "#ffaa00" : "#ff3d5f" },
+                            { label: "Session P&L", val: `${totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}`, color: totalPnL >= 0 ? "#00ff88" : "#ff3d5f" },
+                            { label: "Trades", val: trades.length, color: "#00ccff" },
+                          ].map(({ label, val, color }) => (
+                            <div key={label} className="btstat"><div className="btsl">{label}</div><div className="btsv" style={{color}}>{val}</div></div>
+                          ))}
+                        </div>
+                      )}
+                      {/* WR Log entries */}
+                      <div>
+                        <div className="ct">Win Rate Log Snapshots</div>
+                        {wrLog.length === 0
+                          ? <div style={{color:"#2a5438",fontSize:10}}>No snapshots yet. Logged every 5 trades and on bot stop.</div>
+                          : [...wrLog].reverse().map((e, i) => (
+                            <div key={i} className="ir">
+                              <span style={{fontSize:8,color:"#2a5438",flexShrink:0}}>{e.time}</span>
+                              <span style={{fontSize:9,fontWeight:700,color:parseFloat(e.wr)>=55?"#00ff88":parseFloat(e.wr)>=45?"#ffaa00":"#ff3d5f"}}>{e.wr}%</span>
+                              <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{e.wins}W / {e.total - e.wins}L of {e.total}</span>
+                              <span style={{fontSize:8.5,fontWeight:700,color:parseFloat(e.pnl)>=0?"#00ff88":"#ff3d5f"}}>{parseFloat(e.pnl)>=0?"+":""}{e.pnl}</span>
+                              {e.isFinal && <span style={{fontSize:7.5,background:"rgba(255,170,0,.15)",color:"#ffaa00",padding:"1px 5px",borderRadius:2}}>FINAL</span>}
+                            </div>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Trades Tab ── */}
+                  {activeTab === "trades" && (
+                    <div>
+                      {trades.length === 0
+                        ? <div style={{color:"#2a5438",fontSize:10}}>No trades yet.</div>
+                        : trades.map(t => (
+                          <div key={t.id} className="ir">
+                            <span className={`db ${t.direction === "CALL" ? "dc" : "dp"}`}>{t.direction}</span>
+                            <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>{t.symbol} · {t.time}</span>
+                            <span style={{fontSize:9,fontWeight:700,color:t.won?"#00ff88":"#ff3d5f"}}>{t.won?"+":""}{t.profit.toFixed(2)}</span>
+                            <span style={{fontSize:7.5,color:t.won?"#00ff88":"#ff3d5f"}}>{t.won?"WIN":"LOSS"}</span>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+
+                  {/* ── Open Contracts Tab ── */}
+                  {activeTab === "open" && (
+                    <div>
+                      {openContracts.length === 0
+                        ? <div style={{color:"#2a5438",fontSize:10}}>No open contracts.</div>
+                        : openContracts.map(c => (
+                          <div key={c.id} className="ir">
+                            <span className={`db ${c.direction === "CALL" ? "dc" : "dp"}`}>{c.direction}</span>
+                            <span style={{fontSize:8.5,color:"#4d9968",flex:1}}>#{c.id} · {c.symbol}</span>
+                            <span style={{fontSize:9,color:"#00ccff"}}>Stake {c.buyPrice}</span>
+                            <span style={{fontSize:7.5,color:"#2a5438"}}>{c.openTime}</span>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+
+                  {/* ── Logs Tab ── */}
+                  {activeTab === "logs" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      {logs.length === 0
+                        ? <div style={{color:"#2a5438",fontSize:10}}>No logs yet.</div>
+                        : logs.map(l => (
+                          <div key={l.id} style={{display:"flex",alignItems:"baseline",gap:7}}>
+                            <span style={{fontSize:8,color:"#2a5438",flexShrink:0}}>{l.time}</span>
+                            <span className={`lc l${l.type==="signal"?"sg":l.type.charAt(0)}`}>{l.type.toUpperCase()}</span>
+                            <span style={{fontSize:9,color:"#b0f0cc"}}>{l.msg}</span>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
+        );
+      }
 
-  ReactDOM.createRoot(document.getElementById("root")).render(<MarsBot />);
-</script>
-
-
+      ReactDOM.createRoot(document.getElementById("root")).render(<DerivBot />);
+    </script>
   </body>
 </html>
