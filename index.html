@@ -1,1211 +1,1006 @@
 <!DOCTYPE html>
-
 <html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DerivBot</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="[https://unpkg.com/react@18.2.0/umd/react.development.js](https://unpkg.com/react@18.2.0/umd/react.development.js)" crossorigin></script>
+    <script src="[https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js](https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js)" crossorigin></script>
+    <script src="[https://unpkg.com/@babel/standalone@7.23.10/babel.min.js](https://unpkg.com/@babel/standalone@7.23.10/babel.min.js)"></script>
   </head>
   <body>
     <div id="root"></div>
+    <script type="text/babel" data-presets="env,react">
+      const { useState, useRef, useCallback, useEffect } = React;
 
-```
-<script type="text/babel">
-  const { useState, useRef, useCallback, useEffect } = React;
+      const DERIV_WS_URL = "wss://[ws.binaryws.com/websockets/v3?app_id=1089](https://ws.binaryws.com/websockets/v3?app_id=1089)";
 
-  // ─── Constants ─────────────────────────────────────────────────────────────
-  const DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3?app_id=1089";
+      const SYMBOLS = [
+        { value: "R_10",  label: "Volatility 10",  tag: "V10"  },
+        { value: "R_25",  label: "Volatility 25",  tag: "V25"  },
+        { value: "R_50",  label: "Volatility 50",  tag: "V50"  },
+        { value: "R_75",  label: "Volatility 75",  tag: "V75"  },
+        { value: "R_100", label: "Volatility 100", tag: "V100" },
+      ];
 
-  const SYMBOLS = [
-    { value: "R_10",  label: "Volatility 10",  tag: "V10"  },
-    { value: "R_25",  label: "Volatility 25",  tag: "V25"  },
-    { value: "R_50",  label: "Volatility 50",  tag: "V50"  },
-    { value: "R_75",  label: "Volatility 75",  tag: "V75"  },
-    { value: "R_100", label: "Volatility 100", tag: "V100" },
-  ];
+      const STRATEGIES = [
+        { value: "HYBRID", label: "Hybrid (RSI+BB+EMA)" },
+        { value: "RSI",    label: "RSI Only"            },
+        { value: "EMA",    label: "EMA Only"            },
+        { value: "BB",     label: "Bollinger Band Only" },
+        { value: "MACD",   label: "MACD Only"           },
+      ];
 
-  const STRATEGIES = [
-    { value: "HYBRID", label: "Hybrid (RSI + BB + EMA)", desc: "2 of 3 indicators must agree. Weighted scoring + ATR volatility filter." },
-    { value: "RSI",    label: "RSI Only",                desc: "Wilder RSI — buy oversold, sell overbought." },
-    { value: "EMA",    label: "EMA Only",                desc: "Buy on fast EMA crossing above slow EMA, sell on cross below." },
-    { value: "BB",     label: "Bollinger Band Only",     desc: "Buy near lower band, sell near upper band." },
-    { value: "MACD",   label: "MACD Only",               desc: "Buy on MACD crossing above signal, sell on cross below." },
-  ];
+      const DURATIONS = [
+        { value: 1,  label: "1 min"  },
+        { value: 2,  label: "2 min"  },
+        { value: 5,  label: "5 min"  },
+        { value: 10, label: "10 min" },
+        { value: 15, label: "15 min" },
+      ];
 
-  const DURATIONS = [
-    { value: 1,  label: "1 min"  },
-    { value: 2,  label: "2 min"  },
-    { value: 5,  label: "5 min"  },
-    { value: 10, label: "10 min" },
-    { value: 15, label: "15 min" },
-  ];
-
-  // ─── Per-symbol strategy config ─────────────────────────────────────────────
-  // FIX: Added fallback configs for all symbols (previously V10/V25/V75/V100 returned null silently)
-  const BASE_CONFIG = {
-    HYBRID: {
-      rsiPeriod: 14, rsiBuy: 30, rsiSell: 70,
-      bbPeriod: 20, bbTouchPct: 0.15,
-      emaFast: 9, emaSlow: 21,
-      minStrength: 68, cooldownMs: 25000,
-      atrPeriod: 14, atrMinPct: 0.0003,
-    },
-    RSI:  { period: 14, buy: 30, sell: 70, minStrength: 65, cooldownMs: 25000 },
-    EMA:  { fast: 9, slow: 21, minStrength: 70, cooldownMs: 25000 },
-    BB:   { period: 20, touchPct: 0.15, minStrength: 65, cooldownMs: 25000 },
-    MACD: { fast: 12, slow: 26, signal: 9, minStrength: 68, cooldownMs: 25000 },
-  };
-
-  const STRAT_CONFIG = {
-    R_50: {
-      HYBRID: {
-        rsiPeriod: 10, rsiBuy: 28, rsiSell: 72,
-        bbPeriod: 18, bbTouchPct: 0.18,
-        emaFast: 9, emaSlow: 21,
-        minStrength: 70, cooldownMs: 20000,
-        atrPeriod: 10, atrMinPct: 0.0004,
-      },
-      RSI:  { period: 9,  buy: 25, sell: 75, minStrength: 68, cooldownMs: 20000 },
-      EMA:  { fast: 7, slow: 21, minStrength: 74, cooldownMs: 20000 },
-      BB:   { period: 18, touchPct: 0.18, minStrength: 70, cooldownMs: 20000 },
-      MACD: { fast: 12, slow: 26, signal: 9, minStrength: 72, cooldownMs: 20000 },
-    },
-    R_10: {
-      HYBRID: { ...BASE_CONFIG.HYBRID, rsiBuy: 25, rsiSell: 75, minStrength: 72, cooldownMs: 30000 },
-      RSI:  { ...BASE_CONFIG.RSI,  buy: 22, sell: 78, minStrength: 70 },
-      EMA:  { ...BASE_CONFIG.EMA,  fast: 5, slow: 13 },
-      BB:   { ...BASE_CONFIG.BB,   touchPct: 0.12 },
-      MACD: { ...BASE_CONFIG.MACD },
-    },
-    R_25: {
-      HYBRID: { ...BASE_CONFIG.HYBRID, rsiBuy: 27, rsiSell: 73, cooldownMs: 22000 },
-      RSI:  { ...BASE_CONFIG.RSI,  buy: 27, sell: 73 },
-      EMA:  { ...BASE_CONFIG.EMA },
-      BB:   { ...BASE_CONFIG.BB },
-      MACD: { ...BASE_CONFIG.MACD },
-    },
-    R_75: {
-      HYBRID: { ...BASE_CONFIG.HYBRID, rsiPeriod: 12, bbPeriod: 20, bbTouchPct: 0.16, cooldownMs: 18000 },
-      RSI:  { ...BASE_CONFIG.RSI,  period: 12 },
-      EMA:  { ...BASE_CONFIG.EMA,  fast: 8 },
-      BB:   { ...BASE_CONFIG.BB,   touchPct: 0.16 },
-      MACD: { ...BASE_CONFIG.MACD },
-    },
-    R_100: {
-      HYBRID: { ...BASE_CONFIG.HYBRID, rsiPeriod: 10, bbTouchPct: 0.20, cooldownMs: 15000 },
-      RSI:  { ...BASE_CONFIG.RSI,  period: 10, buy: 26, sell: 74 },
-      EMA:  { ...BASE_CONFIG.EMA,  fast: 7 },
-      BB:   { ...BASE_CONFIG.BB,   touchPct: 0.20 },
-      MACD: { ...BASE_CONFIG.MACD },
-    },
-  };
-
-  const getCfg = (symbol, strategy) =>
-    STRAT_CONFIG[symbol]?.[strategy] ?? BASE_CONFIG[strategy] ?? null;
-
-  // ─── Indicator Math ──────────────────────────────────────────────────────────
-
-  const calcEMA = (prices, period) => {
-    if (prices.length < period) return null;
-    const k = 2 / (period + 1);
-    let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
-    for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
-    return ema;
-  };
-
-  // FIX: Proper Wilder RSI (uses exponential smoothing, not simple average)
-  // This matches the industry-standard RSI formula — far more accurate on fast-moving synthetics
-  const calcRSI = (prices, period = 14) => {
-    if (prices.length < period + 1) return null;
-    const changes = [];
-    for (let i = 1; i < prices.length; i++) changes.push(prices[i] - prices[i - 1]);
-
-    let avgGain = 0, avgLoss = 0;
-    for (let i = 0; i < period; i++) {
-      if (changes[i] > 0) avgGain += changes[i];
-      else avgLoss += Math.abs(changes[i]);
-    }
-    avgGain /= period;
-    avgLoss /= period;
-
-    // Wilder smoothing for remaining bars
-    for (let i = period; i < changes.length; i++) {
-      const gain = changes[i] > 0 ? changes[i] : 0;
-      const loss = changes[i] < 0 ? Math.abs(changes[i]) : 0;
-      avgGain = (avgGain * (period - 1) + gain) / period;
-      avgLoss = (avgLoss * (period - 1) + loss) / period;
-    }
-
-    if (avgLoss === 0) return 100;
-    return 100 - 100 / (1 + avgGain / avgLoss);
-  };
-
-  const calcBB = (prices, period = 20) => {
-    if (prices.length < period) return null;
-    const slice = prices.slice(-period);
-    const mean = slice.reduce((a, b) => a + b, 0) / period;
-    const std = Math.sqrt(slice.map(p => (p - mean) ** 2).reduce((a, b) => a + b, 0) / period);
-    return { upper: mean + 2 * std, middle: mean, lower: mean - 2 * std, std };
-  };
-
-  // FIX: MACD signal line now uses a true EMA of MACD values (not SMA)
-  // Previous version was O(n²) — recalculating full EMAs for each signal bar
-  const calcMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
-    if (prices.length < slow + signalPeriod) return null;
-
-    // Build MACD line history for last (signalPeriod + some buffer) bars
-    const kFast = 2 / (fast + 1);
-    const kSlow = 2 / (slow + 1);
-
-    let emaF = prices.slice(0, fast).reduce((a, b) => a + b, 0) / fast;
-    let emaS = prices.slice(0, slow).reduce((a, b) => a + b, 0) / slow;
-    for (let i = fast; i < slow; i++) emaF = prices[i] * kFast + emaF * (1 - kFast);
-
-    const macdHistory = [];
-    for (let i = slow; i < prices.length; i++) {
-      emaF = prices[i] * kFast + emaF * (1 - kFast);
-      emaS = prices[i] * kSlow + emaS * (1 - kSlow);
-      macdHistory.push(emaF - emaS);
-    }
-
-    if (macdHistory.length < signalPeriod) return null;
-
-    const kSig = 2 / (signalPeriod + 1);
-    let signalLine = macdHistory.slice(0, signalPeriod).reduce((a, b) => a + b, 0) / signalPeriod;
-    for (let i = signalPeriod; i < macdHistory.length; i++) {
-      signalLine = macdHistory[i] * kSig + signalLine * (1 - kSig);
-    }
-
-    const macdLine = macdHistory[macdHistory.length - 1];
-    return { macd: macdLine, signal: signalLine, histogram: macdLine - signalLine };
-  };
-
-  // ATR for volatility filter — suppresses signals in choppy/flat markets
-  const calcATR = (prices, period = 14) => {
-    if (prices.length < period + 1) return null;
-    const trs = [];
-    for (let i = prices.length - period; i < prices.length; i++) {
-      trs.push(Math.abs(prices[i] - prices[i - 1]));
-    }
-    return trs.reduce((a, b) => a + b, 0) / period;
-  };
-
-  // ─── Hybrid Signal Engine ────────────────────────────────────────────────────
-  const computeHybrid = (prices, symbol = "R_50") => {
-    const cfg = getCfg(symbol, "HYBRID");
-    if (!cfg || prices.length < 50) return null;
-
-    const price = prices[prices.length - 1];
-
-    // ATR volatility filter — skip if market is too flat/choppy
-    if (cfg.atrPeriod && cfg.atrMinPct) {
-      const atr = calcATR(prices, cfg.atrPeriod);
-      if (atr !== null && price > 0 && atr / price < cfg.atrMinPct) return null;
-    }
-
-    const rsi    = calcRSI(prices, cfg.rsiPeriod);
-    const bb     = calcBB(prices, cfg.bbPeriod);
-    const emaFast = calcEMA(prices, cfg.emaFast);
-    const emaSlow = calcEMA(prices, cfg.emaSlow);
-
-    if (rsi === null || bb === null || emaFast === null || emaSlow === null) return null;
-
-    // RSI vote
-    let rsiVote = 0, rsiScore = 0, rsiLabel = "";
-    if (rsi < cfg.rsiBuy) {
-      rsiVote = 1;
-      rsiScore = Math.min(100, 65 + (cfg.rsiBuy - rsi) * 3);
-      rsiLabel = `${rsi.toFixed(1)} — oversold`;
-    } else if (rsi > cfg.rsiSell) {
-      rsiVote = -1;
-      rsiScore = Math.min(100, 65 + (rsi - cfg.rsiSell) * 3);
-      rsiLabel = `${rsi.toFixed(1)} — overbought`;
-    } else {
-      rsiScore = Math.max(25, 55 - Math.abs(rsi - 50) * 1.3);
-      rsiLabel = `${rsi.toFixed(1)} — neutral`;
-    }
-
-    // BB vote
-    const bbRange = bb.upper - bb.lower;
-    const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
-    let bbVote = 0, bbScore = 0, bbLabel = "";
-    if (bbPos < cfg.bbTouchPct) {
-      bbVote = 1;
-      bbScore = Math.min(100, 65 + (cfg.bbTouchPct - bbPos) * 260);
-      bbLabel = `${(bbPos * 100).toFixed(0)}% — near lower`;
-    } else if (bbPos > 1 - cfg.bbTouchPct) {
-      bbVote = -1;
-      bbScore = Math.min(100, 65 + (bbPos - (1 - cfg.bbTouchPct)) * 260);
-      bbLabel = `${(bbPos * 100).toFixed(0)}% — near upper`;
-    } else {
-      bbScore = 40;
-      bbLabel = `${(bbPos * 100).toFixed(0)}% — mid band`;
-    }
-
-    // EMA vote
-    const separation = Math.abs(emaFast - emaSlow) / ((emaSlow || 1) * 0.001 + 0.0001);
-    const emaScore   = Math.min(100, 60 + Math.min(separation * 22, 100) * 0.35);
-    const emaVote    = emaFast > emaSlow ? 1 : -1;
-    const emaLabel   = emaFast > emaSlow ? "Fast above slow" : "Fast below slow";
-
-    const callVotes = [rsiVote, bbVote, emaVote].filter(v => v === 1).length;
-    const putVotes  = [rsiVote, bbVote, emaVote].filter(v => v === -1).length;
-    if (callVotes < 2 && putVotes < 2) return null;
-
-    const direction = callVotes >= putVotes ? "CALL" : "PUT";
-    const dirMult   = direction === "CALL" ? 1 : -1;
-    const allAgree  = callVotes === 3 || putVotes === 3;
-
-    const W = { rsi: 0.35, bb: 0.30, ema: 0.35 };
-    let weightedSum = 0, totalWeight = 0;
-
-    const addVote = (vote, score, w) => {
-      if (vote === dirMult)        { weightedSum += score * w; totalWeight += w; }
-      else if (vote === 0)         { weightedSum += score * w * 0.25; totalWeight += w * 0.25; }
-    };
-    addVote(rsiVote, rsiScore, W.rsi);
-    addVote(bbVote,  bbScore,  W.bb);
-    if (emaVote === dirMult) { weightedSum += emaScore * W.ema; totalWeight += W.ema; }
-
-    const rawStrength = totalWeight > 0 ? weightedSum / totalWeight : 0;
-    const strength    = Math.min(100, Math.round(rawStrength + (allAgree ? 6 : 0)));
-    if (strength < cfg.minStrength) return null;
-
-    return {
-      direction, strength, allAgree,
-      summary: `${allAgree ? "3/3" : "2/3"} agree (${symbol})`,
-      components: {
-        rsi: { vote: rsiVote,  score: Math.round(rsiScore),  label: rsiLabel,  agrees: rsiVote  === dirMult },
-        bb:  { vote: bbVote,   score: Math.round(bbScore),   label: bbLabel,   agrees: bbVote   === dirMult },
-        ema: { vote: emaVote,  score: Math.round(emaScore),  label: emaLabel,  agrees: emaVote  === dirMult },
-      },
-    };
-  };
-
-  const computeSingle = (strategy, prices, prev, symbol = "R_50") => {
-    if (prices.length < 40) return null;
-    const cfg = getCfg(symbol, strategy);
-    if (!cfg) return null;
-
-    if (strategy === "RSI") {
-      const rsi = calcRSI(prices, cfg.period);
-      if (rsi === null) return null;
-      if (rsi < cfg.buy) return {
-        direction: "CALL",
-        strength: Math.min(100, Math.round(cfg.minStrength + (cfg.buy - rsi) * 3)),
-        summary: `RSI ${rsi.toFixed(1)} — oversold`,
-        components: null,
+      // ─── Config ──────────────────────────────────────────────────────────────────
+      const BASE_CFG = {
+        HYBRID: { rsiPeriod:14, rsiBuy:30, rsiSell:70, bbPeriod:20, bbTouchPct:0.15, emaFast:9, emaSlow:21, minStrength:68, cooldownMs:25000, atrPeriod:14, atrMinPct:0.0003 },
+        RSI:    { period:14, buy:30, sell:70, minStrength:65, cooldownMs:25000 },
+        EMA:    { fast:9, slow:21, minStrength:70, cooldownMs:25000 },
+        BB:     { period:20, touchPct:0.15, minStrength:65, cooldownMs:25000 },
+        MACD:   { fast:12, slow:26, signal:9, minStrength:68, cooldownMs:25000 },
       };
-      if (rsi > cfg.sell) return {
-        direction: "PUT",
-        strength: Math.min(100, Math.round(cfg.minStrength + (rsi - cfg.sell) * 3)),
-        summary: `RSI ${rsi.toFixed(1)} — overbought`,
-        components: null,
-      };
-    }
 
-    if (strategy === "EMA") {
-      const eFast  = calcEMA(prices, cfg.fast);
-      const eSlow  = calcEMA(prices, cfg.slow);
-      // FIX: Use prev arrays that are actually one tick shorter for a valid crossover check
-      const prevPrices = prev.length >= cfg.slow ? prev : prices.slice(0, -1);
-      const peFast = calcEMA(prevPrices, cfg.fast);
-      const peSlow = calcEMA(prevPrices, cfg.slow);
-      if (!eFast || !eSlow || !peFast || !peSlow) return null;
-      if (peFast < peSlow && eFast > eSlow) return {
-        direction: "CALL", strength: cfg.minStrength,
-        summary: "Fast EMA crossed above slow", components: null,
-      };
-      if (peFast > peSlow && eFast < eSlow) return {
-        direction: "PUT", strength: cfg.minStrength,
-        summary: "Fast EMA crossed below slow", components: null,
-      };
-    }
-
-    if (strategy === "BB") {
-      const price = prices[prices.length - 1];
-      const bb = calcBB(prices, cfg.period);
-      if (!bb) return null;
-      const bbRange = bb.upper - bb.lower;
-      const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
-      if (bbPos <= cfg.touchPct) return {
-        direction: "CALL", strength: cfg.minStrength,
-        summary: "Price near lower BB", components: null,
-      };
-      if (bbPos >= 1 - cfg.touchPct) return {
-        direction: "PUT", strength: cfg.minStrength,
-        summary: "Price near upper BB", components: null,
-      };
-    }
-
-    if (strategy === "MACD") {
-      const m  = calcMACD(prices, cfg.fast, cfg.slow, cfg.signal);
-      const pm = calcMACD(prev.length >= cfg.slow ? prev : prices.slice(0, -1), cfg.fast, cfg.slow, cfg.signal);
-      if (!m || !pm) return null;
-      if (pm.macd < pm.signal && m.macd > m.signal) return {
-        direction: "CALL", strength: cfg.minStrength,
-        summary: "MACD crossed above signal", components: null,
-      };
-      if (pm.macd > pm.signal && m.macd < m.signal) return {
-        direction: "PUT", strength: cfg.minStrength,
-        summary: "MACD crossed below signal", components: null,
-      };
-    }
-
-    return null;
-  };
-
-  const getSignal = (strategy, prices, prev, symbol = "R_50") =>
-    strategy === "HYBRID"
-      ? computeHybrid(prices, symbol)
-      : computeSingle(strategy, prices, prev, symbol);
-
-  // ─── Sparkline ───────────────────────────────────────────────────────────────
-  const Sparkline = ({ data, color = "#00ff88", width = 120, height = 34 }) => {
-    if (!data || data.length < 2) return <svg width={width} height={height} />;
-    const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-    const pts = data.map((v, i) =>
-      `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * (height - 2) - 1}`
-    ).join(" ");
-    return (
-      <svg width={width} height={height} style={{ overflow: "visible" }}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-    );
-  };
-
-  // ─── Strength Gauge ──────────────────────────────────────────────────────────
-  const StrengthGauge = ({ value, size = 68 }) => {
-    const r = size / 2 - 7;
-    const cx = size / 2, cy = size / 2;
-    const toRad = d => (d * Math.PI) / 180;
-    const arcPath = (s, e) => {
-      const sx = cx + r * Math.cos(toRad(s)), sy = cy + r * Math.sin(toRad(s));
-      const ex = cx + r * Math.cos(toRad(e)), ey = cy + r * Math.sin(toRad(e));
-      return `M ${sx} ${sy} A ${r} ${r} 0 ${e - s > 180 ? 1 : 0} 1 ${ex} ${ey}`;
-    };
-    const color  = value >= 80 ? "#00ff88" : value >= 65 ? "#ffaa00" : "#ff3d5f";
-    const endDeg = 135 + (value / 100) * 270;
-    return (
-      <svg width={size} height={size}>
-        <path d={arcPath(135, 404.9)} fill="none" stroke="#162e22" strokeWidth="6" strokeLinecap="round" />
-        <path d={arcPath(135, Math.min(endDeg, 404.8))} fill="none" stroke={color} strokeWidth="6"
-          strokeLinecap="round" style={{ filter: `drop-shadow(0 0 5px ${color}90)` }} />
-        <text x={cx} y={cy + 5} textAnchor="middle" fill={color} fontSize="13"
-          fontFamily="'Syne',sans-serif" fontWeight="800">{value}%</text>
-      </svg>
-    );
-  };
-
-  // ─── Indicator Pill ──────────────────────────────────────────────────────────
-  const Pill = ({ label, score, agrees, vote }) => {
-    const color  = agrees ? "#00ff88" : vote === 0 ? "#5a9e78" : "#ff3d5f";
-    const bg     = agrees ? "rgba(0,255,136,.09)" : vote === 0 ? "rgba(90,158,120,.06)" : "rgba(255,61,95,.09)";
-    const border = agrees ? "rgba(0,255,136,.3)"  : vote === 0 ? "rgba(90,158,120,.2)"  : "rgba(255,61,95,.3)";
-    const arrow  = vote === 1 ? "↑" : vote === -1 ? "↓" : "–";
-    return (
-      <div style={{ flex: 1, background: bg, border: `1px solid ${border}`, borderRadius: 4,
-        padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 8, color: "#5a9e78", letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
-          <span style={{ fontSize: 13, color, fontWeight: 700, lineHeight: 1 }}>{arrow}</span>
-        </div>
-        <div style={{ fontSize: 12, color, fontWeight: 700 }}>{score}%</div>
-        <div style={{ height: 3, background: "#162e22", borderRadius: 2 }}>
-          <div style={{ height: "100%", width: `${score}%`, background: color, borderRadius: 2, transition: "width .4s" }} />
-        </div>
-      </div>
-    );
-  };
-
-  // ─── Main Component ──────────────────────────────────────────────────────────
-  function DerivBot() {
-    // Auth & connection
-    const [tokenInput, setTokenInput]   = useState("");
-    const [connected, setConnected]     = useState(false);
-    const [authorized, setAuthorized]   = useState(false);
-    const [accountInfo, setAccountInfo] = useState(null);
-    const [balance, setBalance]         = useState(null);
-    const [wsStatus, setWsStatus]       = useState("disconnected");
-    const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
-
-    // Config
-    const [symbol, setSymbol]             = useState("R_50");
-    const [strategy, setStrategy]         = useState("HYBRID");
-    const [stake, setStake]               = useState("1");
-    const [duration, setDuration]         = useState(5);
-    const [maxDailyLoss, setMaxDailyLoss] = useState("5");
-    const [maxTrades, setMaxTrades]       = useState("20");
-    const [minStrength, setMinStrength]   = useState("70");
-    const [martingale, setMartingale]     = useState(false);
-    const [martMul, setMartMul]           = useState("1.8");
-    const [execMode, setExecMode]         = useState("auto");
-
-    // Runtime
-    const [botRunning, setBotRunning]         = useState(false);
-    const [currentPrice, setCurrentPrice]     = useState(null);
-    const [priceHistory, setPriceHistory]     = useState([]);
-    const [liveSignal, setLiveSignal]         = useState(null);
-    const [pendingSignal, setPendingSignal]   = useState(null);
-    const [signals, setSignals]               = useState([]);
-    const [trades, setTrades]                 = useState([]);
-    const [openContracts, setOpenContracts]   = useState([]);
-    const [dailyPnL, setDailyPnL]             = useState(0);
-    const [todayTrades, setTodayTrades]       = useState(0);
-    const [consecLosses, setConsecLosses]     = useState(0);
-    const [activeTab, setActiveTab]           = useState("signal");
-    const [logs, setLogs]                     = useState([]);
-
-    // Refs
-    const socketRef       = useRef(null);
-    const pricesRef       = useRef([]);
-    const prevRef         = useRef([]);
-    const runningRef      = useRef(false);
-    const pnlRef          = useRef(0);
-    const tradeCountRef   = useRef(0);
-    const consecLossRef   = useRef(0);
-    const initStakeRef    = useRef(1);
-    const currentStakeRef = useRef(1);
-    const execModeRef     = useRef("auto");
-    const symbolRef       = useRef("R_50");
-    const strategyRef     = useRef("HYBRID");
-    const durationRef     = useRef(5);
-    const minStrRef       = useRef(70);
-    const accountInfoRef  = useRef(null);
-    const martingaleRef   = useRef(false);
-    const martMulRef      = useRef(1.8);
-    const maxLossRef      = useRef(10);
-    const maxTradesRef    = useRef(20);
-    const lastSignalRef   = useRef(0);
-    const tickCountRef    = useRef(0);
-
-    // FIX: pendingDirections must survive across closures
-    const pendingDirections = useRef({});
-    const handleMsgRef  = useRef(null);
-    const evalSignalRef = useRef(null);
-
-    // Sync refs
-    useEffect(() => { execModeRef.current    = execMode;                }, [execMode]);
-    useEffect(() => { symbolRef.current      = symbol;                  }, [symbol]);
-    useEffect(() => { strategyRef.current    = strategy;                }, [strategy]);
-    useEffect(() => { durationRef.current    = duration;                }, [duration]);
-    useEffect(() => { minStrRef.current      = parseFloat(minStrength); }, [minStrength]);
-    useEffect(() => { accountInfoRef.current = accountInfo;             }, [accountInfo]);
-    useEffect(() => { martingaleRef.current  = martingale;              }, [martingale]);
-    useEffect(() => { martMulRef.current     = parseFloat(martMul);     }, [martMul]);
-    useEffect(() => { maxTradesRef.current   = parseInt(maxTrades, 10); }, [maxTrades]);
-    useEffect(() => { initStakeRef.current   = parseFloat(stake);       }, [stake]);
-
-    useEffect(() => {
-      const bal = accountInfoRef.current?.balance ?? 0;
-      const pct = parseFloat(maxDailyLoss) || 0;
-      maxLossRef.current = (bal * pct) / 100;
-    }, [maxDailyLoss, balance, accountInfo]);
-
-    const addLog = useCallback((msg, type = "info") => {
-      const time = new Date().toLocaleTimeString("en-GB");
-      setLogs(prev => [{ time, msg, type, id: Date.now() + Math.random() }, ...prev].slice(0, 100));
-    }, []);
-
-    const placeTrade = useCallback((signal) => {
-      if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-        addLog("WebSocket not ready", "error"); return;
-      }
-      const tradeStake = currentStakeRef.current;
-      const payload = {
-        buy: 1,
-        price: tradeStake,
-        parameters: {
-          amount: tradeStake,
-          basis: "stake",
-          contract_type: signal.direction,
-          currency: accountInfoRef.current?.currency || "USD",
-          duration: durationRef.current,
-          duration_unit: "m",
-          symbol: symbolRef.current,
+      const SYMBOL_CFG = {
+        R_50: {
+          HYBRID: { rsiPeriod:10, rsiBuy:28, rsiSell:72, bbPeriod:18, bbTouchPct:0.18, emaFast:9, emaSlow:21, minStrength:70, cooldownMs:20000, atrPeriod:10, atrMinPct:0.0004 },
+          RSI:    { period:9,  buy:25, sell:75, minStrength:68, cooldownMs:20000 },
+          EMA:    { fast:7, slow:21, minStrength:74, cooldownMs:20000 },
+          BB:     { period:18, touchPct:0.18, minStrength:70, cooldownMs:20000 },
+          MACD:   { fast:12, slow:26, signal:9, minStrength:72, cooldownMs:20000 },
+        },
+        R_10: {
+          HYBRID: { ...BASE_CFG.HYBRID, rsiBuy:25, rsiSell:75, minStrength:72, cooldownMs:30000 },
+          RSI:    { ...BASE_CFG.RSI,  buy:22, sell:78, minStrength:70 },
+          EMA:    { ...BASE_CFG.EMA,  fast:5, slow:13 },
+          BB:     { ...BASE_CFG.BB,   touchPct:0.12 },
+          MACD:   { ...BASE_CFG.MACD },
+        },
+        R_25: {
+          HYBRID: { ...BASE_CFG.HYBRID, rsiBuy:27, rsiSell:73, cooldownMs:22000 },
+          RSI:    { ...BASE_CFG.RSI,  buy:27, sell:73 },
+          EMA:    { ...BASE_CFG.EMA },
+          BB:     { ...BASE_CFG.BB },
+          MACD:   { ...BASE_CFG.MACD },
+        },
+        R_75: {
+          HYBRID: { ...BASE_CFG.HYBRID, rsiPeriod:12, bbTouchPct:0.16, cooldownMs:18000 },
+          RSI:    { ...BASE_CFG.RSI,  period:12 },
+          EMA:    { ...BASE_CFG.EMA,  fast:8 },
+          BB:     { ...BASE_CFG.BB,   touchPct:0.16 },
+          MACD:   { ...BASE_CFG.MACD },
+        },
+        R_100: {
+          HYBRID: { ...BASE_CFG.HYBRID, rsiPeriod:10, bbTouchPct:0.20, cooldownMs:15000 },
+          RSI:    { ...BASE_CFG.RSI,  period:10, buy:26, sell:74 },
+          EMA:    { ...BASE_CFG.EMA,  fast:7 },
+          BB:     { ...BASE_CFG.BB,   touchPct:0.20 },
+          MACD:   { ...BASE_CFG.MACD },
         },
       };
-      pendingDirections.current["__next"] = signal.direction;
-      socketRef.current.send(JSON.stringify(payload));
-      setPendingSignal(null);
-      addLog(`Placing ${signal.direction} · stake ${tradeStake.toFixed(2)} · strength ${signal.strength}%`, "success");
-    }, [addLog]);
 
-    const dismissSignal = useCallback(() => {
-      addLog("Signal dismissed", "warning");
-      setPendingSignal(null);
-    }, [addLog]);
+      const getCfg = (sym, strat) => (SYMBOL_CFG[sym]?.[strat]) ?? BASE_CFG[strat] ?? null;
 
-    const handleMsg = (data) => {
-      if (data.error) {
-        addLog(`Deriv error: ${data.error.message}`, "error");
-        return;
-      }
+      // ─── Indicators ──────────────────────────────────────────────────────────────
+      const calcEMA = (prices, period) => {
+        if (prices.length < period) return null;
+        const k = 2 / (period + 1);
+        let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+        return ema;
+      };
 
-      if (data.msg_type === "authorize") {
-        setAuthorized(true);
-        setAccountInfo(data.authorize);
-        accountInfoRef.current = data.authorize;
-        setBalance(data.authorize.balance);
-        maxLossRef.current = (data.authorize.balance * (parseFloat(maxDailyLoss) || 0)) / 100;
-        addLog(`Authorized — ${data.authorize.loginid} · ${data.authorize.currency} ${data.authorize.balance}`, "success");
-        socketRef.current?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-      }
+      const calcRSI = (prices, period = 14) => {
+        if (prices.length < period + 1) return null;
+        const changes = [];
+        for (let i = 1; i < prices.length; i++) changes.push(prices[i] - prices[i - 1]);
+        let avgGain = 0, avgLoss = 0;
+        for (let i = 0; i < period; i++) {
+          if (changes[i] > 0) avgGain += changes[i];
+          else avgLoss += Math.abs(changes[i]);
+        }
+        avgGain /= period; avgLoss /= period;
+        for (let i = period; i < changes.length; i++) {
+          const g = changes[i] > 0 ? changes[i] : 0;
+          const l = changes[i] < 0 ? Math.abs(changes[i]) : 0;
+          avgGain = (avgGain * (period - 1) + g) / period;
+          avgLoss = (avgLoss * (period - 1) + l) / period;
+        }
+        if (avgLoss === 0) return 100;
+        return 100 - 100 / (1 + avgGain / avgLoss);
+      };
 
-      if (data.msg_type === "balance") {
-        setBalance(data.balance.balance);
-      }
+      const calcBB = (prices, period = 20) => {
+        if (prices.length < period) return null;
+        const sl = prices.slice(-period);
+        const mean = sl.reduce((a, b) => a + b, 0) / period;
+        const std = Math.sqrt(sl.map(p => (p - mean) ** 2).reduce((a, b) => a + b, 0) / period);
+        return { upper: mean + 2 * std, middle: mean, lower: mean - 2 * std };
+      };
 
-      if (data.msg_type === "tick") {
-        const price = parseFloat(data.tick.quote);
-        setCurrentPrice(price);
-        prevRef.current = [...pricesRef.current];
-        pricesRef.current = [...pricesRef.current, price].slice(-400);
+      const calcMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
+        if (prices.length < slow + signalPeriod) return null;
+        const kF = 2 / (fast + 1), kS = 2 / (slow + 1);
+        let eF = prices.slice(0, fast).reduce((a, b) => a + b, 0) / fast;
+        let eS = prices.slice(0, slow).reduce((a, b) => a + b, 0) / slow;
+        for (let i = fast; i < slow; i++) eF = prices[i] * kF + eF * (1 - kF);
+        const macdHist = [];
+        for (let i = slow; i < prices.length; i++) {
+          eF = prices[i] * kF + eF * (1 - kF);
+          eS = prices[i] * kS + eS * (1 - kS);
+          macdHist.push(eF - eS);
+        }
+        if (macdHist.length < signalPeriod) return null;
+        const kSig = 2 / (signalPeriod + 1);
+        let sig = macdHist.slice(0, signalPeriod).reduce((a, b) => a + b, 0) / signalPeriod;
+        for (let i = signalPeriod; i < macdHist.length; i++) sig = macdHist[i] * kSig + sig * (1 - kSig);
+        const macd = macdHist[macdHist.length - 1];
+        return { macd, signal: sig, histogram: macd - sig };
+      };
 
-        tickCountRef.current += 1;
-        if (tickCountRef.current % 5 === 0) {
-          setPriceHistory([...pricesRef.current]);
+      const calcATR = (prices, period = 14) => {
+        if (prices.length < period + 1) return null;
+        let sum = 0;
+        for (let i = prices.length - period; i < prices.length; i++) sum += Math.abs(prices[i] - prices[i - 1]);
+        return sum / period;
+      };
+
+      // ─── Signal Logic ────────────────────────────────────────────────────────────
+      const computeHybrid = (prices, symbol) => {
+        const cfg = getCfg(symbol, "HYBRID");
+        if (!cfg || prices.length < 50) return null;
+        const price = prices[prices.length - 1];
+        if (cfg.atrPeriod && cfg.atrMinPct) {
+          const atr = calcATR(prices, cfg.atrPeriod);
+          if (atr !== null && price > 0 && atr / price < cfg.atrMinPct) return null;
+        }
+        const rsi   = calcRSI(prices, cfg.rsiPeriod);
+        const bb    = calcBB(prices, cfg.bbPeriod);
+        const eFast = calcEMA(prices, cfg.emaFast);
+        const eSlow = calcEMA(prices, cfg.emaSlow);
+        if (rsi === null || bb === null || eFast === null || eSlow === null) return null;
+
+        let rsiVote = 0, rsiScore = 0, rsiLabel = "";
+        if (rsi < cfg.rsiBuy)       { rsiVote = 1;  rsiScore = Math.min(100, 65 + (cfg.rsiBuy - rsi) * 3); rsiLabel = rsi.toFixed(1) + " oversold"; }
+        else if (rsi > cfg.rsiSell) { rsiVote = -1; rsiScore = Math.min(100, 65 + (rsi - cfg.rsiSell) * 3); rsiLabel = rsi.toFixed(1) + " overbought"; }
+        else                        { rsiScore = Math.max(25, 55 - Math.abs(rsi - 50) * 1.3); rsiLabel = rsi.toFixed(1) + " neutral"; }
+
+        const bbRange = bb.upper - bb.lower;
+        const bbPos   = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
+        let bbVote = 0, bbScore = 0, bbLabel = "";
+        if (bbPos < cfg.bbTouchPct)          { bbVote = 1;  bbScore = Math.min(100, 65 + (cfg.bbTouchPct - bbPos) * 260); bbLabel = (bbPos * 100).toFixed(0) + "% near lower"; }
+        else if (bbPos > 1 - cfg.bbTouchPct) { bbVote = -1; bbScore = Math.min(100, 65 + (bbPos - (1 - cfg.bbTouchPct)) * 260); bbLabel = (bbPos * 100).toFixed(0) + "% near upper"; }
+        else                                  { bbScore = 40; bbLabel = (bbPos * 100).toFixed(0) + "% mid band"; }
+
+        const sep      = Math.abs(eFast - eSlow) / ((eSlow || 1) * 0.001 + 0.0001);
+        const emaScore = Math.min(100, 60 + Math.min(sep * 22, 100) * 0.35);
+        const emaVote  = eFast > eSlow ? 1 : -1;
+        const emaLabel = eFast > eSlow ? "Fast above slow" : "Fast below slow";
+
+        const callV = [rsiVote, bbVote, emaVote].filter(v => v === 1).length;
+        const putV  = [rsiVote, bbVote, emaVote].filter(v => v === -1).length;
+        if (callV < 2 && putV < 2) return null;
+
+        const direction = callV >= putV ? "CALL" : "PUT";
+        const dm        = direction === "CALL" ? 1 : -1;
+        const allAgree  = callV === 3 || putV === 3;
+
+        const W = { rsi: 0.35, bb: 0.30, ema: 0.35 };
+        let ws = 0, tw = 0;
+        const addV = (vote, score, w) => {
+          if (vote === dm)     { ws += score * w; tw += w; }
+          else if (vote === 0) { ws += score * w * 0.25; tw += w * 0.25; }
+        };
+        addV(rsiVote, rsiScore, W.rsi);
+        addV(bbVote,  bbScore,  W.bb);
+        if (emaVote === dm) { ws += emaScore * W.ema; tw += W.ema; }
+
+        const strength = Math.min(100, Math.round((tw > 0 ? ws / tw : 0) + (allAgree ? 6 : 0)));
+        if (strength < cfg.minStrength) return null;
+
+        return {
+          direction, strength, allAgree,
+          summary: (allAgree ? "3/3" : "2/3") + " agree",
+          components: {
+            rsi: { vote: rsiVote, score: Math.round(rsiScore), label: rsiLabel, agrees: rsiVote === dm },
+            bb:  { vote: bbVote,  score: Math.round(bbScore),  label: bbLabel,  agrees: bbVote  === dm },
+            ema: { vote: emaVote, score: Math.round(emaScore), label: emaLabel, agrees: emaVote === dm },
+          },
+        };
+      };
+
+      const computeSingle = (strategy, prices, prev, symbol) => {
+        if (prices.length < 40) return null;
+        const cfg = getCfg(symbol, strategy);
+        if (!cfg) return null;
+
+        if (strategy === "RSI") {
+          const rsi = calcRSI(prices, cfg.period);
+          if (rsi === null) return null;
+          if (rsi < cfg.buy)  return { direction:"CALL", strength:Math.min(100, Math.round(cfg.minStrength + (cfg.buy - rsi) * 3)),  summary:"RSI " + rsi.toFixed(1) + " oversold",   components:null };
+          if (rsi > cfg.sell) return { direction:"PUT",  strength:Math.min(100, Math.round(cfg.minStrength + (rsi - cfg.sell) * 3)), summary:"RSI " + rsi.toFixed(1) + " overbought", components:null };
         }
 
-        if (runningRef.current && pricesRef.current.length >= 40) {
-          evalSignalRef.current(price);
+        if (strategy === "EMA") {
+          const pp    = prev.length >= cfg.slow ? prev : prices.slice(0, -1);
+          const eFast = calcEMA(prices, cfg.fast), eSlow = calcEMA(prices, cfg.slow);
+          const pFast = calcEMA(pp, cfg.fast),     pSlow = calcEMA(pp, cfg.slow);
+          if (!eFast || !eSlow || !pFast || !pSlow) return null;
+          if (pFast < pSlow && eFast > eSlow) return { direction:"CALL", strength:cfg.minStrength, summary:"Fast EMA crossed above slow", components:null };
+          if (pFast > pSlow && eFast < eSlow) return { direction:"PUT",  strength:cfg.minStrength, summary:"Fast EMA crossed below slow", components:null };
         }
-      }
 
-      if (data.msg_type === "buy") {
-        const contractId = data.buy.contract_id;
-        // FIX: Capture direction before clearing __next
-        const direction = pendingDirections.current["__next"] || "CALL";
-        delete pendingDirections.current["__next"];
-        pendingDirections.current[contractId] = direction;
+        if (strategy === "BB") {
+          const price = prices[prices.length - 1];
+          const bb = calcBB(prices, cfg.period);
+          if (!bb) return null;
+          const rng = bb.upper - bb.lower;
+          const pos = rng > 0 ? (price - bb.lower) / rng : 0.5;
+          if (pos <= cfg.touchPct)     return { direction:"CALL", strength:cfg.minStrength, summary:"Price near lower BB", components:null };
+          if (pos >= 1 - cfg.touchPct) return { direction:"PUT",  strength:cfg.minStrength, summary:"Price near upper BB", components:null };
+        }
 
-        tradeCountRef.current += 1;
-        setTodayTrades(prev => prev + 1);
-        addLog(`Contract #${contractId} opened · stake ${data.buy.buy_price}`, "success");
-        setOpenContracts(prev => [...prev, {
-          id: contractId,
-          buyPrice: data.buy.buy_price,
-          openTime: new Date().toLocaleTimeString(),
-          symbol: symbolRef.current,
-          direction,
-        }]);
-        socketRef.current?.send(JSON.stringify({
-          proposal_open_contract: 1,
-          contract_id: contractId,
-          subscribe: 1,
-        }));
-      }
+        if (strategy === "MACD") {
+          const pp = prev.length >= cfg.slow ? prev : prices.slice(0, -1);
+          const m  = calcMACD(prices, cfg.fast, cfg.slow, cfg.signal);
+          const pm = calcMACD(pp,     cfg.fast, cfg.slow, cfg.signal);
+          if (!m || !pm) return null;
+          if (pm.macd < pm.signal && m.macd > m.signal) return { direction:"CALL", strength:cfg.minStrength, summary:"MACD crossed above signal", components:null };
+          if (pm.macd > pm.signal && m.macd < m.signal) return { direction:"PUT",  strength:cfg.minStrength, summary:"MACD crossed below signal", components:null };
+        }
 
-      if (data.msg_type === "proposal_open_contract") {
-        const contract = data.proposal_open_contract;
-        if (!contract.is_sold) return;
+        return null;
+      };
 
-        const contractId = contract.contract_id;
-        const profit = parseFloat(contract.profit);
+      const getSignal = (strategy, prices, prev, symbol) =>
+        strategy === "HYBRID" ? computeHybrid(prices, symbol) : computeSingle(strategy, prices, prev, symbol);
 
-        // FIX: Read direction BEFORE deleting, use contract_id for forget
-        const dir = pendingDirections.current[contractId] ||
-          (contract.contract_type?.includes("CALL") ? "CALL" : "PUT");
-        delete pendingDirections.current[contractId];
+      // ─── Sparkline ───────────────────────────────────────────────────────────────
+      const Sparkline = ({ data, color, width, height }) => {
+        const c = color || "#00ff88", w = width || 120, h = height || 34;
+        if (!data || data.length < 2) return React.createElement("svg", { width: w, height: h });
+        const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+        const pts = data.map((v, i) =>
+          ((i / (data.length - 1)) * w).toFixed(1) + "," + (h - ((v - min) / range) * (h - 2) - 1).toFixed(1)
+        ).join(" ");
+        return (
+          <svg width={w} height={h} style={{ overflow:"visible" }}>
+            <polyline points={pts} fill="none" stroke={c} strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+        );
+      };
 
-        // FIX: contract.contract_id is the right ID for forget (not contract.id which is the stream sub id)
-        socketRef.current?.send(JSON.stringify({ forget: contract.contract_id }));
+      // ─── Strength Gauge ──────────────────────────────────────────────────────────
+      const StrengthGauge = ({ value, size }) => {
+        const sz = size || 68;
+        const r = sz / 2 - 7, cx = sz / 2, cy = sz / 2;
+        const toRad = d => (d * Math.PI) / 180;
+        const arc = (s, e) => {
+          const sx = cx + r * Math.cos(toRad(s)), sy = cy + r * Math.sin(toRad(s));
+          const ex = cx + r * Math.cos(toRad(e)), ey = cy + r * Math.sin(toRad(e));
+          return "M " + sx + " " + sy + " A " + r + " " + r + " 0 " + (e - s > 180 ? 1 : 0) + " 1 " + ex + " " + ey;
+        };
+        const color  = value >= 80 ? "#00ff88" : value >= 65 ? "#ffaa00" : "#ff3d5f";
+        const endDeg = 135 + (value / 100) * 270;
+        return (
+          <svg width={sz} height={sz}>
+            <path d={arc(135, 404.9)} fill="none" stroke="#162e22" strokeWidth="6" strokeLinecap="round" />
+            <path d={arc(135, Math.min(endDeg, 404.8))} fill="none" stroke={color} strokeWidth="6"
+              strokeLinecap="round" style={{ filter:"drop-shadow(0 0 5px " + color + "90)" }} />
+            <text x={cx} y={cy + 5} textAnchor="middle" fill={color} fontSize="13"
+              fontFamily="'Syne',sans-serif" fontWeight="800">{value}%</text>
+          </svg>
+        );
+      };
 
-        pnlRef.current += profit;
-        setDailyPnL(prev => prev + profit);
-        setOpenContracts(prev => prev.filter(c => c.id !== contractId));
+      // ─── Indicator Pill ──────────────────────────────────────────────────────────
+      const Pill = ({ label, score, agrees, vote }) => {
+        const color  = agrees ? "#00ff88" : vote === 0 ? "#5a9e78" : "#ff3d5f";
+        const bg     = agrees ? "rgba(0,255,136,.09)" : vote === 0 ? "rgba(90,158,120,.06)" : "rgba(255,61,95,.09)";
+        const border = agrees ? "rgba(0,255,136,.3)"  : vote === 0 ? "rgba(90,158,120,.2)"  : "rgba(255,61,95,.3)";
+        const arrow  = vote === 1 ? "↑" : vote === -1 ? "↓" : "–";
+        return (
+          <div style={{ flex:1, background:bg, border:"1px solid " + border, borderRadius:4, padding:"7px 9px", display:"flex", flexDirection:"column", gap:4 }}>
+            <div style={{ display:"flex", justifyContent:"space-between" }}>
+              <span style={{ fontSize:8, color:"#5a9e78", letterSpacing:1.5, textTransform:"uppercase" }}>{label}</span>
+              <span style={{ fontSize:13, color:color, fontWeight:700, lineHeight:1 }}>{arrow}</span>
+            </div>
+            <div style={{ fontSize:12, color:color, fontWeight:700 }}>{score}%</div>
+            <div style={{ height:3, background:"#162e22", borderRadius:2 }}>
+              <div style={{ height:"100%", width:score + "%", background:color, borderRadius:2, transition:"width .4s" }} />
+            </div>
+          </div>
+        );
+      };
 
-        if (profit > 0) {
-          consecLossRef.current = 0;
-          setConsecLosses(0);
-          currentStakeRef.current = initStakeRef.current;
-          addLog(`✓ WON +${profit.toFixed(2)}`, "success");
-        } else {
-          consecLossRef.current += 1;
-          setConsecLosses(consecLossRef.current);
-          if (martingaleRef.current) {
-            const nextStake = currentStakeRef.current * martMulRef.current;
-            const bal = accountInfoRef.current?.balance ?? 0;
-            const maxStake = bal * 0.05;
-            currentStakeRef.current = Math.min(nextStake, maxStake);
-            addLog(`✗ LOST ${profit.toFixed(2)} · Martingale → ${currentStakeRef.current.toFixed(2)} (capped)`, "warning");
-          } else {
-            addLog(`✗ LOST ${profit.toFixed(2)}`, "error");
+      // ─── Styles ──────────────────────────────────────────────────────────────────
+      const CSS = "@import url('[https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap](https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap)');" +
+        "*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}" +
+        ":root{--bg:#020c08;--bg2:#050f0a;--bg3:#0a1910;--bd:#142a1c;--bd2:#1e3d2c;--g:#00ff88;--b:#00ccff;--r:#ff3d5f;--y:#ffaa00;--t:#b0f0cc;--t2:#4d9968;--t3:#2a5438;--card:#060d09}" +
+        "body{background:var(--bg)}" +
+        ".R{font-family:'Space Mono',monospace;background:var(--bg);color:var(--t);min-height:100vh;display:flex;flex-direction:column}" +
+        ".H{display:flex;align-items:center;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:200;gap:8px}" +
+        ".Lg{display:flex;align-items:center;gap:9px;flex-shrink:0}" +
+        ".Lh{width:24px;height:24px;background:var(--g);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);flex-shrink:0}" +
+        ".Lt{font-family:'Syne',sans-serif;font-weight:800;font-size:14px}" +
+        ".Lt em{color:var(--g);font-style:normal}" +
+        ".Ls{font-size:7px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-top:1px}" +
+        ".Hr{display:flex;align-items:center;gap:10px;margin-left:auto}" +
+        ".dot{width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0}" +
+        ".dot.on{background:var(--g);box-shadow:0 0 8px var(--g);animation:blink 2s infinite}" +
+        ".dot.er{background:var(--r)}" +
+        "@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}" +
+        ".wsl{font-size:9px;color:var(--t2);letter-spacing:1px;text-transform:uppercase}" +
+        ".acl{font-size:9px;color:var(--t2);white-space:nowrap}" +
+        ".hb{display:none;background:none;border:1px solid var(--bd);color:var(--t2);padding:6px 11px;border-radius:3px;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;transition:all .15s;min-height:36px;white-space:nowrap}" +
+        ".hb:hover{border-color:var(--g);color:var(--g)}" +
+        ".lay{display:flex;flex:1;min-height:0;position:relative}" +
+        ".S{width:244px;min-width:244px;background:var(--bg2);border-right:1px solid var(--bd);padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;transition:transform .25s ease}" +
+        ".sbl{font-size:7.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--bd);padding-bottom:5px;margin-bottom:2px}" +
+        ".sbs{display:flex;flex-direction:column;gap:7px}" +
+        ".fg{display:flex;flex-direction:column;gap:3px}" +
+        ".fl{font-size:9px;color:var(--t2)}" +
+        ".fi,.fse{background:var(--bg3);border:1px solid var(--bd);color:var(--t);font-family:'Space Mono',monospace;font-size:11px;padding:8px 9px;border-radius:3px;outline:none;width:100%;transition:border-color .15s;-webkit-appearance:none}" +
+        ".fi:focus,.fse:focus{border-color:var(--g)}" +
+        ".fi::placeholder{color:var(--t3)}" +
+        ".fse option{background:var(--bg3)}" +
+        ".tr{display:flex;align-items:center;justify-content:space-between;padding:2px 0}" +
+        ".tl{font-size:10px;color:var(--t2)}" +
+        ".tog{position:relative;width:32px;height:18px;cursor:pointer;flex-shrink:0}" +
+        ".tog input{opacity:0;width:0;height:0;position:absolute}" +
+        ".tt{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--bd);border-radius:17px;transition:all .2s}" +
+        ".tog input:checked ~ .tt{background:var(--g);border-color:var(--g)}" +
+        ".tb{position:absolute;top:3px;left:3px;width:10px;height:10px;border-radius:50%;background:var(--t3);transition:all .2s}" +
+        ".tog input:checked ~ .tb{transform:translateX(15px);background:var(--bg)}" +
+        ".btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:9px 12px;border-radius:3px;border:none;cursor:pointer;transition:all .15s;font-weight:700;min-height:40px;width:100%}" +
+        ".bg{background:var(--g);color:var(--bg)}" +
+        ".bg:hover{filter:brightness(1.15)}" +
+        ".bg:disabled{opacity:.4;cursor:not-allowed}" +
+        ".br{background:var(--r);color:#fff}" +
+        ".br:hover{filter:brightness(1.15)}" +
+        ".br:disabled{opacity:.4;cursor:not-allowed}" +
+        ".bh{background:transparent;color:var(--t2);border:1px solid var(--bd)}" +
+        ".bh:hover{border-color:var(--g);color:var(--g)}" +
+        ".mr{display:flex;gap:5px}" +
+        ".mb{flex:1;padding:8px 5px;background:var(--bg3);border:1px solid var(--bd);border-radius:3px;color:var(--t2);font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;text-align:center;min-height:38px}" +
+        ".mb.ma{background:rgba(0,255,136,.1);border-color:var(--g);color:var(--g)}" +
+        ".mb.mm{background:rgba(0,204,255,.1);border-color:var(--b);color:var(--b)}" +
+        ".mb:not(.ma):not(.mm):hover{border-color:var(--bd2);color:var(--t)}" +
+        ".ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:198;backdrop-filter:blur(2px)}" +
+        ".M{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}" +
+        ".sg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}" +
+        ".st{background:var(--bg3);border:1px solid var(--bd);border-radius:4px;padding:10px 12px}" +
+        ".stl{font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(--t3);margin-bottom:3px}" +
+        ".stv{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}" +
+        ".sts{font-size:7.5px;color:var(--t3);margin-top:2px}" +
+        ".cg{color:var(--g)} .cr{color:var(--r)} .cb{color:var(--b)} .cy{color:var(--y)}" +
+        ".card{background:var(--card);border:1px solid var(--bd);border-radius:4px;padding:12px}" +
+        ".ct{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}" +
+        ".sh{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}" +
+        ".sm{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px}" +
+        ".sm.sc2{border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.03)}" +
+        ".sm.sp{border-color:rgba(255,61,95,.4);background:rgba(255,61,95,.03)}" +
+        ".pb2{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-1px;color:var(--g)}" +
+        ".sd{font-size:9.5px;color:var(--t2)}" +
+        ".gc{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px;min-width:84px}" +
+        ".gl{font-size:7.5px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase}" +
+        ".pb{background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.4);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:9px;animation:pglow .9s ease-in-out infinite alternate;margin-top:10px}" +
+        "@keyframes pglow{from{box-shadow:0 0 4px rgba(0,204,255,.15)}to{box-shadow:0 0 18px rgba(0,204,255,.35)}}" +
+        ".pbt{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--b);letter-spacing:1px}" +
+        ".pa{display:flex;gap:7px}" +
+        ".be{flex:1;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:9px;border:none;border-radius:3px;cursor:pointer;transition:all .15s;min-height:40px}" +
+        ".be.gc3{background:var(--g);color:var(--bg)}" +
+        ".be.rc3{background:var(--r);color:#fff}" +
+        ".be:hover{filter:brightness(1.2)}" +
+        ".tabs{display:flex;gap:2px;border-bottom:1px solid var(--bd);margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}" +
+        ".tabs::-webkit-scrollbar{display:none}" +
+        ".tab{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:8px 10px;background:none;border:none;color:var(--t3);cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;min-height:36px}" +
+        ".tab.on{color:var(--g);border-bottom-color:var(--g)}" +
+        ".tab:not(.on):hover{color:var(--t2)}" +
+        ".shr{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--bd);border-radius:3px;background:var(--bg3);margin-bottom:4px;animation:fin .25s ease}" +
+        "@keyframes fin{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}" +
+        ".db{font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:2px;min-width:34px;text-align:center;flex-shrink:0}" +
+        ".db.CALL{background:rgba(0,255,136,.1);color:var(--g);border:1px solid rgba(0,255,136,.25)}" +
+        ".db.PUT{background:rgba(255,61,95,.1);color:var(--r);border:1px solid rgba(255,61,95,.25)}" +
+        ".sr2{flex:1;font-size:9px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+        ".sst{font-size:10px;font-weight:700;min-width:30px;text-align:right;flex-shrink:0}" +
+        ".strb{display:flex;align-items:center;gap:4px;flex-shrink:0}" +
+        ".strtr{width:36px;height:3px;background:var(--bd);border-radius:2px;overflow:hidden}" +
+        ".strfi{height:100%;border-radius:2px;transition:width .4s}" +
+        ".stim{font-size:8px;color:var(--t3);min-width:46px;text-align:right;flex-shrink:0}" +
+        ".trow{display:grid;grid-template-columns:52px 38px 46px 56px 56px 56px;gap:4px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--bd);font-size:9px}" +
+        ".trow:hover{background:var(--bg3)}" +
+        ".trow.th{color:var(--t3);font-size:7px;letter-spacing:1px;text-transform:uppercase}" +
+        ".pp{color:var(--g)} .pn{color:var(--r)}" +
+        ".oc{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--bd);border-radius:3px;background:var(--bg3);margin-bottom:4px;flex-wrap:wrap}" +
+        ".lr{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid rgba(20,42,28,.5);font-size:9px;line-height:1.5}" +
+        ".lt{color:var(--t3);min-width:50px;flex-shrink:0}" +
+        ".lm{flex:1;word-break:break-word}" +
+        ".lm.success{color:var(--g)} .lm.error{color:var(--r)} .lm.warning{color:var(--y)} .lm.signal{color:var(--b)}" +
+        ".rb{width:100%;height:3px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:3px}" +
+        ".rf{height:100%;border-radius:2px;transition:width .5s,background .5s}" +
+        ".em{text-align:center;padding:24px;color:var(--t3);font-size:9.5px}" +
+        ".hn{font-size:8.5px;background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.18);border-radius:3px;padding:7px 9px;color:var(--g);line-height:1.8}" +
+        "::-webkit-scrollbar{width:3px;height:3px}" +
+        "::-webkit-scrollbar-track{background:var(--bg)}" +
+        "::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}" +
+        "@media(max-width:860px){.sg{grid-template-columns:repeat(2,1fr)}.hb{display:block}.wsl{display:none}.lay{flex-direction:row}.S{position:fixed;top:0;left:0;bottom:0;z-index:199;width:260px;min-width:260px;transform:translateX(-100%);padding-top:58px;box-shadow:4px 0 24px rgba(0,0,0,.6)}.S.open{transform:translateX(0)}.ov.open{display:block}.M{padding:10px}}" +
+        "@media(max-width:480px){.sg{grid-template-columns:repeat(2,1fr)}.sh{flex-direction:column}.gc{flex-direction:row;min-width:0;width:100%;justify-content:flex-start;gap:12px;padding:8px 10px}.trow{grid-template-columns:46px 32px 40px 50px 50px 50px;font-size:8px;gap:3px;padding:4px 6px}.strb{display:none}.stv{font-size:16px}.pb2{font-size:20px}.card{padding:10px}.M{padding:8px;gap:8px}}";
+
+      // ─── Main App ────────────────────────────────────────────────────────────────
+      function DerivBot() {
+        const [tokenInput, setTokenInput]   = useState("");
+        const [connected, setConnected]     = useState(false);
+        const [authorized, setAuthorized]   = useState(false);
+        const [accountInfo, setAccountInfo] = useState(null);
+        const [balance, setBalance]         = useState(null);
+        const [wsStatus, setWsStatus]       = useState("disconnected");
+        const [sidebarOpen, setSidebarOpen] = useState(false);
+        const [symbol, setSymbol]           = useState("R_50");
+        const [strategy, setStrategy]       = useState("HYBRID");
+        const [stake, setStake]             = useState("1");
+        const [duration, setDuration]       = useState(5);
+        const [maxDailyLoss, setMaxDailyLoss] = useState("5");
+        const [maxTrades, setMaxTrades]     = useState("20");
+        const [minStrength, setMinStrength] = useState("70");
+        const [martingale, setMartingale]   = useState(false);
+        const [martMul, setMartMul]         = useState("1.8");
+        const [execMode, setExecMode]       = useState("auto");
+        const [botRunning, setBotRunning]   = useState(false);
+        const [currentPrice, setCurrentPrice] = useState(null);
+        const [priceHistory, setPriceHistory] = useState([]);
+        const [liveSignal, setLiveSignal]   = useState(null);
+        const [pendingSignal, setPendingSignal] = useState(null);
+        const [signals, setSignals]         = useState([]);
+        const [trades, setTrades]           = useState([]);
+        const [openContracts, setOpenContracts] = useState([]);
+        const [dailyPnL, setDailyPnL]       = useState(0);
+        const [todayTrades, setTodayTrades] = useState(0);
+        const [consecLosses, setConsecLosses] = useState(0);
+        const [activeTab, setActiveTab]     = useState("signal");
+        const [logs, setLogs]               = useState([]);
+
+        const socketRef      = useRef(null);
+        const pricesRef      = useRef([]);
+        const prevRef        = useRef([]);
+        const runningRef     = useRef(false);
+        const pnlRef         = useRef(0);
+        const tradeCountRef  = useRef(0);
+        const consecLossRef  = useRef(0);
+        const initStakeRef   = useRef(1);
+        const curStakeRef    = useRef(1);
+        const execModeRef    = useRef("auto");
+        const symbolRef      = useRef("R_50");
+        const strategyRef    = useRef("HYBRID");
+        const durationRef    = useRef(5);
+        const minStrRef      = useRef(70);
+        const accountInfoRef = useRef(null);
+        const martingaleRef  = useRef(false);
+        const martMulRef     = useRef(1.8);
+        const maxLossRef     = useRef(0);
+        const maxTradesRef   = useRef(20);
+        const lastSignalRef  = useRef(0);
+        const tickCountRef   = useRef(0);
+        const pendingDirs    = useRef({});
+        const handleMsgRef   = useRef(null);
+        const evalSignalRef  = useRef(null);
+        const lastUiUpdateRef = useRef(0); // <-- Added Ref for throttling UI
+
+        useEffect(() => { execModeRef.current    = execMode;                }, [execMode]);
+        useEffect(() => { symbolRef.current      = symbol;                  }, [symbol]);
+        useEffect(() => { strategyRef.current    = strategy;                }, [strategy]);
+        useEffect(() => { durationRef.current    = duration;                }, [duration]);
+        useEffect(() => { minStrRef.current      = parseFloat(minStrength); }, [minStrength]);
+        useEffect(() => { accountInfoRef.current = accountInfo;             }, [accountInfo]);
+        useEffect(() => { martingaleRef.current  = martingale;              }, [martingale]);
+        useEffect(() => { martMulRef.current     = parseFloat(martMul);     }, [martMul]);
+        useEffect(() => { maxTradesRef.current   = parseInt(maxTrades, 10); }, [maxTrades]);
+        useEffect(() => { initStakeRef.current   = parseFloat(stake);       }, [stake]);
+        useEffect(() => {
+          const bal = accountInfoRef.current?.balance ?? 0;
+          maxLossRef.current = (bal * (parseFloat(maxDailyLoss) || 0)) / 100;
+        }, [maxDailyLoss, balance, accountInfo]);
+
+        const addLog = useCallback((msg, type) => {
+          const t = type || "info";
+          const time = new Date().toLocaleTimeString("en-GB");
+          setLogs(p => [{ time, msg, type:t, id: Date.now() + Math.random() }, ...p].slice(0, 100));
+        }, []);
+
+        const placeTrade = useCallback((signal) => {
+          if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+            addLog("WebSocket not ready", "error"); return;
           }
-        }
+          const s = curStakeRef.current;
+          pendingDirs.current["__next"] = signal.direction;
+          socketRef.current.send(JSON.stringify({
+            buy: 1, price: s,
+            parameters: {
+              amount: s, basis: "stake",
+              contract_type: signal.direction,
+              currency: accountInfoRef.current?.currency || "USD",
+              duration: durationRef.current, duration_unit: "m",
+              symbol: symbolRef.current,
+            },
+          }));
+          setPendingSignal(null);
+          addLog("Placing " + signal.direction + " · stake " + s.toFixed(2) + " · strength " + signal.strength + "%", "success");
+        }, [addLog]);
 
-        setTrades(prev => [{
-          id: contractId,
-          time: new Date().toLocaleTimeString(),
-          symbol: symbolRef.current,
-          direction: dir,
-          stake: parseFloat(contract.buy_price),
-          profit,
-          won: profit > 0,
-          payout: parseFloat(contract.sell_price || 0),
-        }, ...prev].slice(0, 50));
-      }
-    };
+        const dismissSignal = useCallback(() => {
+          addLog("Signal dismissed", "warning");
+          setPendingSignal(null);
+        }, [addLog]);
 
-    const evalSignal = (price) => {
-      const sym = symbolRef.current;
-      const cfg = getCfg(sym, strategyRef.current);
+        const handleMsg = (data) => {
+          if (data.error) { addLog("Deriv error: " + data.error.message, "error"); return; }
 
-      if (pnlRef.current <= -maxLossRef.current && maxLossRef.current > 0) {
-        addLog("⚠ Daily loss limit hit — stopping bot", "warning");
-        setBotRunning(false); runningRef.current = false; return;
-      }
-      if (tradeCountRef.current >= maxTradesRef.current) {
-        addLog("⚠ Max daily trades reached — stopping bot", "warning");
-        setBotRunning(false); runningRef.current = false; return;
-      }
-      if (consecLossRef.current >= 5) {
-        addLog("⚠ 5 consecutive losses — cooling down 30s", "warning");
-        consecLossRef.current = 0;
-        setConsecLosses(0);
-        lastSignalRef.current = Date.now() + 30000; // force extra cooldown
-        return;
-      }
+          if (data.msg_type === "authorize") {
+            setAuthorized(true);
+            setAccountInfo(data.authorize);
+            accountInfoRef.current = data.authorize;
+            setBalance(data.authorize.balance);
+            maxLossRef.current = (data.authorize.balance * (parseFloat(maxDailyLoss) || 0)) / 100;
+            addLog("Authorized — " + data.authorize.loginid + " · " + data.authorize.currency + " " + data.authorize.balance, "success");
+            socketRef.current?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+          }
 
-      const prices = pricesRef.current;
-      const prev   = prevRef.current.length > 0 ? prevRef.current : prices.slice(0, -1);
-      const signal = getSignal(strategyRef.current, prices, prev, sym);
+          if (data.msg_type === "balance") {
+            setBalance(data.balance.balance);
+          }
 
-      setLiveSignal(signal);
-      if (!signal || signal.strength < minStrRef.current) return;
+          if (data.msg_type === "tick") {
+            const price = parseFloat(data.tick.quote);
+            
+            // Background array updates (always run)
+            prevRef.current = [...pricesRef.current];
+            pricesRef.current = [...pricesRef.current, price].slice(-400);
+            tickCountRef.current += 1;
+            
+            // Background signal evaluation (always run)
+            if (runningRef.current && pricesRef.current.length >= 40) {
+              evalSignalRef.current(price);
+            }
 
-      const now = Date.now();
-      // FIX: Cooldown now pulled from the actual strategy config
-      const cooldown = cfg?.cooldownMs || 20000;
-      if (now - lastSignalRef.current < cooldown) return;
-      lastSignalRef.current = now;
+            // UI Throttle: Only update the React component state every 500ms
+            const now = Date.now();
+            if (now - lastUiUpdateRef.current > 500) {
+              setCurrentPrice(price);
+              setPriceHistory([...pricesRef.current]);
+              lastUiUpdateRef.current = now;
+            }
+          }
 
-      const entry = {
-        id: now,
-        time: new Date().toLocaleTimeString(),
-        ...signal,
-        price: price.toFixed(5),
-        acted: execModeRef.current === "auto",
-      };
-      setSignals(prev => [entry, ...prev].slice(0, 30));
-      addLog(`Signal: ${signal.direction} · ${signal.strength}% · ${signal.summary}`, "signal");
+          if (data.msg_type === "buy") {
+            const cid = data.buy.contract_id;
+            const dir = pendingDirs.current["__next"] || "CALL";
+            delete pendingDirs.current["__next"];
+            pendingDirs.current[cid] = dir;
+            tradeCountRef.current += 1;
+            setTodayTrades(p => p + 1);
+            addLog("Contract #" + cid + " opened · stake " + data.buy.buy_price, "success");
+            setOpenContracts(p => [...p, { id: cid, buyPrice: data.buy.buy_price, openTime: new Date().toLocaleTimeString(), symbol: symbolRef.current, direction: dir }]);
+            socketRef.current?.send(JSON.stringify({ proposal_open_contract: 1, contract_id: cid, subscribe: 1 }));
+          }
 
-      if (execModeRef.current === "auto") {
-        placeTrade(signal);
-      } else {
-        setPendingSignal(entry);
-      }
-    };
+          if (data.msg_type === "proposal_open_contract") {
+            const contract = data.proposal_open_contract;
+            if (!contract.is_sold) return;
+            const cid    = contract.contract_id;
+            const profit = parseFloat(contract.profit);
+            const dir    = pendingDirs.current[cid] || (contract.contract_type?.includes("CALL") ? "CALL" : "PUT");
+            delete pendingDirs.current[cid];
+            socketRef.current?.send(JSON.stringify({ forget: cid }));
+            pnlRef.current += profit;
+            setDailyPnL(p => p + profit);
+            setOpenContracts(p => p.filter(c => c.id !== cid));
 
-    handleMsgRef.current  = handleMsg;
-    evalSignalRef.current = evalSignal;
+            if (profit > 0) {
+              consecLossRef.current = 0;
+              setConsecLosses(0);
+              curStakeRef.current = initStakeRef.current;
+              addLog("✓ WON +" + profit.toFixed(2), "success");
+            } else {
+              consecLossRef.current += 1;
+              setConsecLosses(consecLossRef.current);
+              if (martingaleRef.current) {
+                const next = Math.min(curStakeRef.current * martMulRef.current, (accountInfoRef.current?.balance ?? 0) * 0.05);
+                curStakeRef.current = next;
+                addLog("✗ LOST " + profit.toFixed(2) + " · Martingale → " + next.toFixed(2), "warning");
+              } else {
+                addLog("✗ LOST " + profit.toFixed(2), "error");
+              }
+            }
 
-    const connect = useCallback(() => {
-      if (socketRef.current) socketRef.current.close();
-      setWsStatus("connecting");
-      addLog("Connecting to Deriv…", "info");
-      const socket = new WebSocket(DERIV_WS_URL);
-      socketRef.current = socket;
-      socket.onopen    = () => { setConnected(true);  setWsStatus("connected");    addLog("Connected", "success"); };
-      socket.onclose   = () => {
-        setConnected(false); setAuthorized(false); setWsStatus("disconnected");
-        setBotRunning(false); runningRef.current = false;
-        addLog("Disconnected", "warning");
-      };
-      socket.onerror   = () => { setWsStatus("error"); addLog("Connection error", "error"); };
-      socket.onmessage = (e) => handleMsgRef.current(JSON.parse(e.data));
-    }, [addLog]);
+            setTrades(p => [{
+              id: cid, time: new Date().toLocaleTimeString(),
+              symbol: symbolRef.current, direction: dir,
+              stake: parseFloat(contract.buy_price), profit,
+              won: profit > 0, payout: parseFloat(contract.sell_price || 0),
+            }, ...p].slice(0, 50));
+          }
+        };
 
-    const authorize = () => {
-      if (!tokenInput.trim()) { addLog("Enter a token first", "error"); return; }
-      socketRef.current?.send(JSON.stringify({ authorize: tokenInput }));
-      addLog("Authorizing…", "info");
-    };
+        const evalSignal = (price) => {
+          const sym = symbolRef.current;
+          const cfg = getCfg(sym, strategyRef.current);
 
-    const startBot = () => {
-      if (!authorized) { addLog("Authorize first", "error"); return; }
-      pricesRef.current       = [];
-      prevRef.current         = [];
-      tickCountRef.current    = 0;
-      currentStakeRef.current = initStakeRef.current;
-      setBotRunning(true);
-      runningRef.current = true;
-      socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      socketRef.current?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-      const modeLabel = execMode === "auto" ? "Auto" : "Manual";
-      addLog(`Bot started · ${STRATEGIES.find(s => s.value === strategy)?.label} · ${symbol} · ${modeLabel}`, "success");
-    };
+          if (maxLossRef.current > 0 && pnlRef.current <= -maxLossRef.current) {
+            addLog("⚠ Daily loss limit hit — stopping", "warning");
+            setBotRunning(false); runningRef.current = false; return;
+          }
+          if (tradeCountRef.current >= maxTradesRef.current) {
+            addLog("⚠ Max trades reached — stopping", "warning");
+            setBotRunning(false); runningRef.current = false; return;
+          }
+          if (consecLossRef.current >= 5) {
+            addLog("⚠ 5 consecutive losses — cooling down", "warning");
+            consecLossRef.current = 0; setConsecLosses(0);
+            lastSignalRef.current = Date.now() + 30000; return;
+          }
 
-    const stopBot = () => {
-      setBotRunning(false); runningRef.current = false;
-      socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      setPendingSignal(null); setLiveSignal(null);
-      addLog("Bot stopped", "warning");
-    };
+          const prices = pricesRef.current;
+          const prev   = prevRef.current.length > 0 ? prevRef.current : prices.slice(0, -1);
+          const signal = getSignal(strategyRef.current, prices, prev, sym);
+          setLiveSignal(signal);
+          if (!signal || signal.strength < minStrRef.current) return;
 
-    const resetDay = () => {
-      pnlRef.current = 0; tradeCountRef.current = 0; consecLossRef.current = 0;
-      currentStakeRef.current = initStakeRef.current;
-      setDailyPnL(0); setTodayTrades(0); setConsecLosses(0);
-      addLog("Daily stats reset", "info");
-    };
+          const now      = Date.now();
+          const cooldown = cfg?.cooldownMs || 20000;
+          if (now - lastSignalRef.current < cooldown) return;
+          lastSignalRef.current = now;
 
-    const symInfo    = SYMBOLS.find(s => s.value === symbol);
-    const winRate    = trades.length > 0
-      ? ((trades.filter(t => t.won).length / trades.length) * 100).toFixed(1) : null;
-    const lossRatio  = maxLossRef.current > 0
-      ? Math.min(100, (Math.abs(Math.min(0, dailyPnL)) / maxLossRef.current) * 100) : 0;
-    const riskColor  = lossRatio > 75 ? "#ff3d5f" : lossRatio > 50 ? "#ffaa00" : "#00ff88";
-    const strColor   = (s) => s >= 80 ? "#00ff88" : s >= 65 ? "#ffaa00" : "#ff3d5f";
+          const entry = { id: now, time: new Date().toLocaleTimeString(), ...signal, price: price.toFixed(5), acted: execModeRef.current === "auto" };
+          setSignals(p => [entry, ...p].slice(0, 30));
+          addLog("Signal: " + signal.direction + " · " + signal.strength + "% · " + signal.summary, "signal");
 
-    const CSS = `
-```
+          if (execModeRef.current === "auto") placeTrade(signal);
+          else setPendingSignal(entry);
+        };
 
-@import url(‘https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap’);
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-–bg:#020c08;–bg2:#050f0a;–bg3:#0a1910;
-–bd:#142a1c;–bd2:#1e3d2c;
-–g:#00ff88;–b:#00ccff;–r:#ff3d5f;–y:#ffaa00;
-–t:#b0f0cc;–t2:#4d9968;–t3:#2a5438;
-–card:#060d09;
-}
-.R{font-family:‘Space Mono’,monospace;background:var(–bg);color:var(–t);min-height:100vh;display:flex;flex-direction:column}
-.H{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(–bg2);border-bottom:1px solid var(–bd);position:sticky;top:0;z-index:200;gap:8px}
-.Lg{display:flex;align-items:center;gap:9px}
-.Lh{width:24px;height:24px;background:var(–g);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);flex-shrink:0}
-.Lt{font-family:‘Syne’,sans-serif;font-weight:800;font-size:14px}
-.Lt em{color:var(–g);font-style:normal}
-.Ls{font-size:7.5px;color:var(–t3);letter-spacing:2px;text-transform:uppercase;margin-top:1px}
-.Hr{display:flex;align-items:center;gap:10px;margin-left:auto}
-.dot{width:7px;height:7px;border-radius:50%;background:var(–t3);flex-shrink:0}
-.dot.on{background:var(–g);box-shadow:0 0 8px var(–g);animation:bl 2s infinite}
-.dot.er{background:var(–r)}
-@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
-.hl{font-size:9px;color:var(–t2);letter-spacing:1px;text-transform:uppercase}
-.hb{display:none;background:none;border:1px solid var(–bd);color:var(–t2);padding:6px 10px;border-radius:3px;cursor:pointer;font-family:‘Space Mono’,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;transition:all .15s;min-height:36px}
-.hb:hover{border-color:var(–g);color:var(–g)}
-.B{display:flex;flex:1;min-height:0;position:relative}
-.S{width:242px;min-width:242px;background:var(–bg2);border-right:1px solid var(–bd);padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;transition:transform .25s ease}
-.sl{font-size:7.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(–t3);border-bottom:1px solid var(–bd);padding-bottom:5px;margin-bottom:2px}
-.sc{display:flex;flex-direction:column;gap:7px}
-.fg{display:flex;flex-direction:column;gap:3px}
-.fl{font-size:9px;color:var(–t2)}
-.fi,.fse{background:var(–bg3);border:1px solid var(–bd);color:var(–t);font-family:‘Space Mono’,monospace;font-size:11px;padding:8px 9px;border-radius:3px;outline:none;width:100%;transition:border-color .15s;-webkit-appearance:none}
-.fi:focus,.fse:focus{border-color:var(–g)}
-.fi::placeholder{color:var(–t3)}
-.fse option{background:var(–bg3)}
-.tr{display:flex;align-items:center;justify-content:space-between;padding:2px 0}
-.tl{font-size:10px;color:var(–t2)}
-.tog{position:relative;width:32px;height:18px;cursor:pointer;flex-shrink:0}
-.tog input{opacity:0;width:0;height:0;position:absolute}
-.tt{position:absolute;inset:0;background:var(–bg3);border:1px solid var(–bd);border-radius:17px;transition:all .2s}
-.tog input:checked~.tt{background:var(–g);border-color:var(–g)}
-.tb{position:absolute;top:3px;left:3px;width:10px;height:10px;border-radius:50%;background:var(–t3);transition:all .2s}
-.tog input:checked~.tb{transform:translateX(15px);background:var(–bg)}
-.btn{font-family:‘Space Mono’,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:9px 12px;border-radius:3px;border:none;cursor:pointer;transition:all .15s;font-weight:700;min-height:40px}
-.bg{background:var(–g);color:var(–bg);width:100%}
-.bg:hover{filter:brightness(1.15)}
-.bg:disabled{opacity:.4;cursor:not-allowed}
-.bst{background:var(–r);color:#fff;width:100%}
-.bst:hover{filter:brightness(1.15)}
-.bst:disabled{opacity:.4;cursor:not-allowed}
-.bgh{background:transparent;color:var(–t2);border:1px solid var(–bd);width:100%}
-.bgh:hover{border-color:var(–g);color:var(–g)}
-.ms{display:flex;gap:5px}
-.mb{flex:1;padding:8px 5px;background:var(–bg3);border:1px solid var(–bd);border-radius:3px;color:var(–t2);font-family:‘Space Mono’,monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;text-align:center;min-height:38px}
-.mb.ma{background:rgba(0,255,136,.1);border-color:var(–g);color:var(–g)}
-.mb.mm{background:rgba(0,204,255,.1);border-color:var(–b);color:var(–b)}
-.mb:not(.ma):not(.mm):hover{border-color:var(–bd2);color:var(–t)}
-.M{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.st{background:var(–bg3);border:1px solid var(–bd);border-radius:4px;padding:10px 12px}
-.stl{font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(–t3);margin-bottom:3px}
-.stv{font-family:‘Syne’,sans-serif;font-size:18px;font-weight:800}
-.sts{font-size:7.5px;color:var(–t3);margin-top:2px}
-.cg{color:var(–g)} .cr{color:var(–r)} .cb{color:var(–b)} .cy{color:var(–y)}
-.card{background:var(–card);border:1px solid var(–bd);border-radius:4px;padding:12px}
-.ct{font-family:‘Syne’,sans-serif;font-size:9px;font-weight:700;color:var(–t2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
-.sh{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
-.sm{flex:1;min-width:0;background:var(–bg3);border:1px solid var(–bd);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px}
-.sm.sc2{border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.03)}
-.sm.sp{border-color:rgba(255,61,95,.4);background:rgba(255,61,95,.03)}
-.sd{font-family:‘Syne’,sans-serif;font-size:24px;font-weight:800;letter-spacing:-1px}
-.sd.cg2{color:var(–g)} .sd.cr2{color:var(–r)}
-.ss2{font-size:9.5px;color:var(–t2)}
-.gc{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;background:var(–bg3);border:1px solid var(–bd);border-radius:4px;min-width:84px}
-.gl{font-size:7.5px;color:var(–t3);letter-spacing:1.5px;text-transform:uppercase}
-.pr{display:flex;gap:7px;margin-top:2px}
-.pb{background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.4);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:9px;animation:glow .9s ease-in-out infinite alternate}
-@keyframes glow{from{box-shadow:0 0 4px rgba(0,204,255,.15)}to{box-shadow:0 0 18px rgba(0,204,255,.35)}}
-.pbt{font-family:‘Syne’,sans-serif;font-size:10px;font-weight:700;color:var(–b);letter-spacing:1px}
-.pa{display:flex;gap:7px}
-.bex{flex:1;font-family:‘Space Mono’,monospace;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:9px;border:none;border-radius:3px;cursor:pointer;transition:all .15s;min-height:40px}
-.bex.gc3{background:var(–g);color:var(–bg)}
-.bex.rc3{background:var(–r);color:#fff}
-.bex:hover{filter:brightness(1.2)}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(–bd);margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{font-family:‘Space Mono’,monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:8px 10px;background:none;border:none;color:var(–t3);cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;min-height:36px}
-.tab.on{color:var(–g);border-bottom-color:var(–g)}
-.tab:not(.on):hover{color:var(–t2)}
-.shr{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(–bd);border-radius:3px;background:var(–bg3);margin-bottom:4px;animation:fi2 .25s ease}
-@keyframes fi2{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
-.db{font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:2px;min-width:34px;text-align:center;flex-shrink:0}
-.db.CALL{background:rgba(0,255,136,.1);color:var(–g);border:1px solid rgba(0,255,136,.25)}
-.db.PUT{background:rgba(255,61,95,.1);color:var(–r);border:1px solid rgba(255,61,95,.25)}
-.sr2{flex:1;font-size:9px;color:var(–t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sst{font-size:10px;font-weight:700;min-width:30px;text-align:right;flex-shrink:0}
-.stim{font-size:8px;color:var(–t3);min-width:46px;text-align:right;flex-shrink:0}
-.strb{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.strtr{width:36px;height:3px;background:var(–bd);border-radius:2px;overflow:hidden}
-.strfi{height:100%;border-radius:2px;transition:width .4s}
-.trow{display:grid;grid-template-columns:52px 38px 46px 56px 56px 56px;gap:4px;align-items:center;padding:5px 8px;border-bottom:1px solid var(–bd);font-size:9px}
-.trow:hover{background:var(–bg3)}
-.trow.th{color:var(–t3);font-size:7px;letter-spacing:1px;text-transform:uppercase}
-.pp{color:var(–g)} .pn{color:var(–r)}
-.oc{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(–bd);border-radius:3px;background:var(–bg3);margin-bottom:4px;flex-wrap:wrap}
-.lr{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid rgba(20,42,28,.5);font-size:9px;line-height:1.5}
-.lt{color:var(–t3);min-width:50px;flex-shrink:0}
-.lm{flex:1;word-break:break-word}
-.lm.success{color:var(–g)} .lm.error{color:var(–r)} .lm.warning{color:var(–y)} .lm.signal{color:var(–b)}
-.rb{width:100%;height:3px;background:var(–bd);border-radius:2px;overflow:hidden;margin-top:3px}
-.rf{height:100%;border-radius:2px;transition:width .5s,background .5s}
-.em{text-align:center;padding:24px;color:var(–t3);font-size:9.5px}
-.hn{font-size:8.5px;background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.18);border-radius:3px;padding:7px 9px;color:var(–g);line-height:1.8}
-::-webkit-scrollbar{width:3px;height:3px}
-::-webkit-scrollbar-track{background:var(–bg)}
-::-webkit-scrollbar-thumb{background:var(–bd);border-radius:2px}
-.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:198;backdrop-filter:blur(2px)}
+        handleMsgRef.current  = handleMsg;
+        evalSignalRef.current = evalSignal;
 
-@media(max-width:860px){
-.sg{grid-template-columns:repeat(2,1fr)}
-.hb{display:block}
-.hl-ws{display:none}
-.B{flex-direction:row}
-.S{
-position:fixed;top:0;left:0;bottom:0;z-index:199;
-width:260px;min-width:260px;
-transform:translateX(-100%);
-padding-top:60px;
-box-shadow:4px 0 20px rgba(0,0,0,.5);
-}
-.S.open{transform:translateX(0)}
-.ov.open{display:block}
-.M{padding:10px}
-.gc{min-width:70px}
-.sd{font-size:20px}
-}
+        const connect = useCallback(() => {
+          if (socketRef.current) socketRef.current.close();
+          setWsStatus("connecting");
+          addLog("Connecting to Deriv…", "info");
+          const ws = new WebSocket(DERIV_WS_URL);
+          socketRef.current = ws;
+          ws.onopen    = () => { setConnected(true);  setWsStatus("connected");    addLog("Connected", "success"); };
+          ws.onclose   = () => { setConnected(false); setAuthorized(false); setWsStatus("disconnected"); setBotRunning(false); runningRef.current = false; addLog("Disconnected", "warning"); };
+          ws.onerror   = () => { setWsStatus("error"); addLog("Connection error", "error"); };
+          ws.onmessage = (e) => handleMsgRef.current(JSON.parse(e.data));
+        }, [addLog]);
 
-@media(max-width:480px){
-.sg{grid-template-columns:repeat(2,1fr)}
-.sh{flex-direction:column}
-.gc{flex-direction:row;min-width:0;width:100%;justify-content:flex-start;gap:10px;padding:8px 10px}
-.trow{grid-template-columns:46px 32px 40px 50px 50px 50px;font-size:8px;gap:3px;padding:4px 6px}
-.shr{flex-wrap:wrap;gap:5px}
-.sr2{width:100%;white-space:normal;font-size:8.5px}
-.strb{display:none}
-.H{padding:9px 10px}
-.Lt{font-size:13px}
-.stv{font-size:16px}
-.card{padding:10px}
-.M{padding:8px;gap:8px}
-}
-`;
+        const authorize = () => {
+          if (!tokenInput.trim()) { addLog("Enter a token first", "error"); return; }
+          socketRef.current?.send(JSON.stringify({ authorize: tokenInput }));
+          addLog("Authorizing…", "info");
+        };
 
-```
-    return (
-      <>
-        <style>{CSS}</style>
-        <div className="R">
-          {/* Header */}
-          <header className="H">
-            <div className="Lg">
-              <div className="Lh" />
-              <div>
-                <div className="Lt">DERIV<em>BOT</em></div>
-                <div className="Ls">Hybrid Trader v2.1 · V50 focus</div>
-              </div>
-            </div>
-            <div className="Hr">
-              <div className={`dot ${wsStatus === "connected" ? "on" : wsStatus === "error" ? "er" : ""}`} />
-              <span className="hl hl-ws">{wsStatus}</span>
-              {authorized && (
-                <span style={{ fontSize: 9, color: "var(--t2)", whiteSpace: "nowrap" }}>
-                  {accountInfo?.loginid} · {accountInfo?.currency} {balance?.toFixed(2)}
-                </span>
-              )}
-              <button className="hb" onClick={() => setSidebarOpen(o => !o)}>
-                {sidebarOpen ? "✕ Close" : "☰ Config"}
-              </button>
-            </div>
-          </header>
+        const startBot = () => {
+          if (!authorized) { addLog("Authorize first", "error"); return; }
+          pricesRef.current = []; prevRef.current = []; tickCountRef.current = 0;
+          curStakeRef.current = initStakeRef.current;
+          setBotRunning(true); runningRef.current = true;
+          socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
+          socketRef.current?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+          addLog("Bot started · " + strategy + " · " + symbol + " · " + (execMode === "auto" ? "Auto" : "Manual"), "success");
+        };
 
-          <div className="B">
-            {/* Mobile overlay */}
-            <div className={`ov ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
+        const stopBot = () => {
+          setBotRunning(false); runningRef.current = false;
+          socketRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
+          setPendingSignal(null); setLiveSignal(null);
+          addLog("Bot stopped", "warning");
+        };
 
-            {/* Sidebar */}
-            <aside className={`S ${sidebarOpen ? "open" : ""}`}>
-              <div>
-                <div className="sl">Connection</div>
-                <div className="sc">
-                  <div className="fg">
-                    <label className="fl">Token</label>
-                    <input className="fi" type="password" placeholder="Paste Deriv API token"
-                      value={tokenInput} onChange={e => setTokenInput(e.target.value)} />
-                  </div>
-                  <button className="btn bg" onClick={connect} disabled={connected}>
-                    {connected ? "Connected" : "Connect"}
-                  </button>
-                  <button className="btn bgh" onClick={authorize} disabled={!connected || authorized}>
-                    {authorized ? "Authorized" : "Authorize"}
-                  </button>
-                </div>
-              </div>
+        const resetDay = () => {
+          pnlRef.current = 0; tradeCountRef.current = 0; consecLossRef.current = 0;
+          curStakeRef.current = initStakeRef.current;
+          setDailyPnL(0); setTodayTrades(0); setConsecLosses(0);
+          addLog("Daily stats reset", "info");
+        };
 
-              <div>
-                <div className="sl">Market & Strategy</div>
-                <div className="sc">
-                  <div className="fg">
-                    <label className="fl">Symbol</label>
-                    <select className="fse" value={symbol} onChange={e => setSymbol(e.target.value)}>
-                      {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="fg">
-                    <label className="fl">Strategy</label>
-                    <select className="fse" value={strategy} onChange={e => setStrategy(e.target.value)}>
-                      {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="fg">
-                    <label className="fl">Duration</label>
-                    <select className="fse" value={duration} onChange={e => setDuration(parseInt(e.target.value, 10))}>
-                      {DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                    </select>
+        const symInfo   = SYMBOLS.find(s => s.value === symbol);
+        const winRate   = trades.length > 0 ? ((trades.filter(t => t.won).length / trades.length) * 100).toFixed(1) : null;
+        const lossRatio = maxLossRef.current > 0 ? Math.min(100, (Math.abs(Math.min(0, dailyPnL)) / maxLossRef.current) * 100) : 0;
+        const riskColor = lossRatio > 75 ? "#ff3d5f" : lossRatio > 50 ? "#ffaa00" : "#00ff88";
+        const strColor  = s => s >= 80 ? "#00ff88" : s >= 65 ? "#ffaa00" : "#ff3d5f";
+
+        return (
+          <React.Fragment>
+            <style>{CSS}</style>
+            <div className="R">
+
+              <header className="H">
+                <div className="Lg">
+                  <div className="Lh" />
+                  <div>
+                    <div className="Lt">DERIV<em>BOT</em></div>
+                    <div className="Ls">Hybrid Trader v2.1</div>
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <div className="sl">Risk & Money</div>
-                <div className="sc">
-                  <div className="fg">
-                    <label className="fl">Stake (amount)</label>
-                    <input className="fi" value={stake} onChange={e => setStake(e.target.value)} />
-                  </div>
-                  <div className="fg">
-                    <label className="fl">Max daily loss (% of balance)</label>
-                    <input className="fi" value={maxDailyLoss} onChange={e => setMaxDailyLoss(e.target.value)} />
-                  </div>
-                  <div className="fg">
-                    <label className="fl">Max trades per day</label>
-                    <input className="fi" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} />
-                  </div>
-                  <div className="fg">
-                    <label className="fl">Min signal strength</label>
-                    <input className="fi" value={minStrength} onChange={e => setMinStrength(e.target.value)} />
-                  </div>
-                  <div className="tr">
-                    <span className="tl">Martingale (capped)</span>
-                    <label className="tog">
-                      <input type="checkbox" checked={martingale} onChange={e => setMartingale(e.target.checked)} />
-                      <span className="tt" /><span className="tb" />
-                    </label>
-                  </div>
-                  {martingale && (
-                    <div className="fg">
-                      <label className="fl">Martingale multiplier</label>
-                      <input className="fi" value={martMul} onChange={e => setMartMul(e.target.value)} />
-                    </div>
+                <div className="Hr">
+                  <div className={"dot" + (wsStatus === "connected" ? " on" : wsStatus === "error" ? " er" : "")} />
+                  <span className="wsl">{wsStatus}</span>
+                  {authorized && (
+                    <span className="acl">{accountInfo?.loginid} · {accountInfo?.currency} {balance?.toFixed(2)}</span>
                   )}
+                  <button className="hb" onClick={() => setSidebarOpen(o => !o)}>
+                    {sidebarOpen ? "✕ Close" : "☰ Config"}
+                  </button>
                 </div>
-              </div>
+              </header>
 
-              <div>
-                <div className="sl">Execution</div>
-                <div className="sc">
-                  <div className="ms">
-                    <button className={`mb ${execMode === "auto" ? "ma" : ""}`} onClick={() => setExecMode("auto")}>Auto</button>
-                    <button className={`mb ${execMode === "manual" ? "mm" : ""}`} onClick={() => setExecMode("manual")}>Manual</button>
-                  </div>
-                  <button className="btn bg" onClick={() => { startBot(); setSidebarOpen(false); }} disabled={!authorized || botRunning}>Start Bot</button>
-                  <button className="btn bst" onClick={stopBot} disabled={!botRunning}>Stop Bot</button>
-                  <button className="btn bgh" onClick={resetDay}>Reset Daily Stats</button>
-                </div>
-              </div>
-            </aside>
+              <div className="lay">
+                <div className={"ov" + (sidebarOpen ? " open" : "")} onClick={() => setSidebarOpen(false)} />
 
-            {/* Main */}
-            <main className="M">
-              {/* Stats Grid */}
-              <section className="sg">
-                <div className="st">
-                  <div className="stl">Market</div>
-                  <div className="stv">{symInfo?.label || symbol}</div>
-                  <div className="sts">Tag: {symInfo?.tag}</div>
-                </div>
-                <div className="st">
-                  <div className="stl">Balance</div>
-                  <div className="stv cg">{balance != null ? balance.toFixed(2) : "--"}</div>
-                  <div className="sts">Live account</div>
-                </div>
-                <div className="st">
-                  <div className="stl">Today PnL</div>
-                  <div className={`stv ${dailyPnL >= 0 ? "cg" : "cr"}`}>{dailyPnL.toFixed(2)}</div>
-                  <div className="sts">Trades: {todayTrades}{winRate ? ` · ${winRate}% WR` : ""}</div>
-                </div>
-                <div className="st">
-                  <div className="stl">Risk Load</div>
-                  <div className="stv"><span style={{ color: riskColor }}>{lossRatio.toFixed(1)}%</span></div>
-                  <div className="rb">
-                    <div className="rf" style={{ width: `${lossRatio}%`, background: riskColor }} />
-                  </div>
-                  <div className="sts">vs daily cap</div>
-                </div>
-              </section>
-
-              {/* Signal Card */}
-              <section className="card">
-                <div className="ct">Live Signal & Market Snapshot</div>
-                <div className="sh">
-                  <div className={`sm ${liveSignal ? (liveSignal.direction === "CALL" ? "sc2" : "sp") : ""}`}>
-                    <div className="sd cg2">{currentPrice != null ? currentPrice.toFixed(5) : "--"}</div>
-                    <div className="ss2">
-                      {liveSignal
-                        ? `${liveSignal.direction} · ${liveSignal.strength}% · ${liveSignal.summary}`
-                        : "Waiting for qualified signal…"}
+                <aside className={"S" + (sidebarOpen ? " open" : "")}>
+                  <div>
+                    <div className="sbl">Connection</div>
+                    <div className="sbs">
+                      <div className="fg">
+                        <label className="fl">Token</label>
+                        <input className="fi" type="password" placeholder="Paste Deriv API token"
+                          value={tokenInput} onChange={e => setTokenInput(e.target.value)} />
+                      </div>
+                      <button className="btn bg" onClick={connect} disabled={connected}>
+                        {connected ? "Connected" : "Connect"}
+                      </button>
+                      <button className="btn bh" onClick={authorize} disabled={!connected || authorized}>
+                        {authorized ? "Authorized ✓" : "Authorize"}
+                      </button>
                     </div>
-                    <div className="pr">
-                      <Sparkline data={priceHistory} />
+                  </div>
+
+                  <div>
+                    <div className="sbl">Market &amp; Strategy</div>
+                    <div className="sbs">
+                      <div className="fg">
+                        <label className="fl">Symbol</label>
+                        <select className="fse" value={symbol} onChange={e => setSymbol(e.target.value)}>
+                          {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="fg">
+                        <label className="fl">Strategy</label>
+                        <select className="fse" value={strategy} onChange={e => setStrategy(e.target.value)}>
+                          {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="fg">
+                        <label className="fl">Duration</label>
+                        <select className="fse" value={duration} onChange={e => setDuration(parseInt(e.target.value, 10))}>
+                          {DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    {liveSignal?.components && (
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        <Pill label="RSI" score={liveSignal.components.rsi.score} agrees={liveSignal.components.rsi.agrees} vote={liveSignal.components.rsi.vote} />
-                        <Pill label="BB"  score={liveSignal.components.bb.score}  agrees={liveSignal.components.bb.agrees}  vote={liveSignal.components.bb.vote}  />
-                        <Pill label="EMA" score={liveSignal.components.ema.score} agrees={liveSignal.components.ema.agrees} vote={liveSignal.components.ema.vote} />
+                  </div>
+
+                  <div>
+                    <div className="sbl">Risk &amp; Money</div>
+                    <div className="sbs">
+                      <div className="fg">
+                        <label className="fl">Stake (amount)</label>
+                        <input className="fi" value={stake} onChange={e => setStake(e.target.value)} />
+                      </div>
+                      <div className="fg">
+                        <label className="fl">Max daily loss (% of balance)</label>
+                        <input className="fi" value={maxDailyLoss} onChange={e => setMaxDailyLoss(e.target.value)} />
+                      </div>
+                      <div className="fg">
+                        <label className="fl">Max trades per day</label>
+                        <input className="fi" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} />
+                      </div>
+                      <div className="fg">
+                        <label className="fl">Min signal strength</label>
+                        <input className="fi" value={minStrength} onChange={e => setMinStrength(e.target.value)} />
+                      </div>
+                      <div className="tr">
+                        <span className="tl">Martingale (capped 5%)</span>
+                        <label className="tog">
+                          <input type="checkbox" checked={martingale} onChange={e => setMartingale(e.target.checked)} />
+                          <span className="tt" />
+                          <span className="tb" />
+                        </label>
+                      </div>
+                      {martingale && (
+                        <div className="fg">
+                          <label className="fl">Martingale multiplier</label>
+                          <input className="fi" value={martMul} onChange={e => setMartMul(e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="sbl">Execution</div>
+                    <div className="sbs">
+                      <div className="mr">
+                        <button className={"mb" + (execMode === "auto" ? " ma" : "")} onClick={() => setExecMode("auto")}>Auto</button>
+                        <button className={"mb" + (execMode === "manual" ? " mm" : "")} onClick={() => setExecMode("manual")}>Manual</button>
+                      </div>
+                      <button className="btn bg" onClick={() => { startBot(); setSidebarOpen(false); }} disabled={!authorized || botRunning}>Start Bot</button>
+                      <button className="btn br" onClick={stopBot} disabled={!botRunning}>Stop Bot</button>
+                      <button className="btn bh" onClick={resetDay}>Reset Daily Stats</button>
+                    </div>
+                  </div>
+                </aside>
+
+                <main className="M">
+
+                  <section className="sg">
+                    <div className="st">
+                      <div className="stl">Market</div>
+                      <div className="stv">{symInfo?.label || symbol}</div>
+                      <div className="sts">Tag: {symInfo?.tag}</div>
+                    </div>
+                    <div className="st">
+                      <div className="stl">Balance</div>
+                      <div className="stv cg">{balance != null ? balance.toFixed(2) : "--"}</div>
+                      <div className="sts">Live account</div>
+                    </div>
+                    <div className="st">
+                      <div className="stl">Today PnL</div>
+                      <div className={"stv " + (dailyPnL >= 0 ? "cg" : "cr")}>{dailyPnL.toFixed(2)}</div>
+                      <div className="sts">{"Trades: " + todayTrades + (winRate ? " · " + winRate + "% WR" : "")}</div>
+                    </div>
+                    <div className="st">
+                      <div className="stl">Risk Load</div>
+                      <div className="stv"><span style={{ color: riskColor }}>{lossRatio.toFixed(1)}%</span></div>
+                      <div className="rb"><div className="rf" style={{ width: lossRatio + "%", background: riskColor }} /></div>
+                      <div className="sts">vs daily cap</div>
+                    </div>
+                  </section>
+
+                  <section className="card">
+                    <div className="ct">Live Signal &amp; Market Snapshot</div>
+                    <div className="sh">
+                      <div className={"sm" + (liveSignal ? (liveSignal.direction === "CALL" ? " sc2" : " sp") : "")}>
+                        <div className="pb2">{currentPrice != null ? currentPrice.toFixed(5) : "--"}</div>
+                        <div className="sd">
+                          {liveSignal ? (liveSignal.direction + " · " + liveSignal.strength + "% · " + liveSignal.summary) : "Waiting for qualified signal…"}
+                        </div>
+                        <div><Sparkline data={priceHistory} /></div>
+                        {liveSignal && liveSignal.components && (
+                          <div style={{ display:"flex", gap:6, marginTop:4 }}>
+                            <Pill label="RSI" score={liveSignal.components.rsi.score} agrees={liveSignal.components.rsi.agrees} vote={liveSignal.components.rsi.vote} />
+                            <Pill label="BB"  score={liveSignal.components.bb.score}  agrees={liveSignal.components.bb.agrees}  vote={liveSignal.components.bb.vote}  />
+                            <Pill label="EMA" score={liveSignal.components.ema.score} agrees={liveSignal.components.ema.agrees} vote={liveSignal.components.ema.vote} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="gc">
+                        <div className="gl">Strength</div>
+                        <StrengthGauge value={liveSignal ? liveSignal.strength : 0} />
+                        <div style={{ fontSize:9, color:"#4d9968" }}>Min: {minStrength}%</div>
+                      </div>
+                    </div>
+                    {pendingSignal && (
+                      <div className="pb">
+                        <div className="pbt">Manual confirmation required</div>
+                        <div className="pa">
+                          <button className="be gc3" onClick={() => placeTrade(pendingSignal)}>Execute {pendingSignal.direction}</button>
+                          <button className="be rc3" onClick={dismissSignal}>Dismiss</button>
+                        </div>
                       </div>
                     )}
-                  </div>
-                  <div className="gc">
-                    <div className="gl">Strength</div>
-                    <StrengthGauge value={liveSignal?.strength || 0} />
-                    <div style={{ fontSize: 9, color: "#4d9968" }}>Min: {minStrength}%</div>
-                  </div>
-                </div>
+                  </section>
 
-                {pendingSignal && (
-                  <div style={{ marginTop: 10 }}>
-                    <div className="pb">
-                      <div className="pbt">Manual confirmation required</div>
-                      <div className="pa">
-                        <button className="bex gc3" onClick={() => placeTrade(pendingSignal)}>
-                          Execute {pendingSignal.direction}
-                        </button>
-                        <button className="bex rc3" onClick={dismissSignal}>Dismiss</button>
-                      </div>
+                  <section className="card">
+                    <div className="tabs">
+                      {[["signal","Signals"],["trades","Trades"],["open","Open"],["log","Log"]].map(function(item) {
+                        return (
+                          <button key={item[0]} className={"tab" + (activeTab === item[0] ? " on" : "")} onClick={() => setActiveTab(item[0])}>
+                            {item[1]}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
-                )}
-              </section>
 
-              {/* Tabs */}
-              <section className="card">
-                <div className="tabs">
-                  {[["signal","Signals"],["trades","Trades"],["open","Open"],["log","Log"]].map(([v,l]) => (
-                    <button key={v} className={`tab ${activeTab === v ? "on" : ""}`} onClick={() => setActiveTab(v)}>{l}</button>
-                  ))}
-                </div>
-
-                {activeTab === "signal" && (
-                  <div>
-                    {signals.length === 0 && <div className="em">No signals yet.</div>}
-                    {signals.map(s => (
-                      <div key={s.id} className="shr">
-                        <span className={`db ${s.direction}`}>{s.direction}</span>
-                        <span className="sr2">{s.summary}</span>
-                        <span className="strb">
-                          <span className="sst" style={{ color: strColor(s.strength) }}>{s.strength}%</span>
-                          <span className="strtr">
-                            <span className="strfi" style={{ width: `${s.strength}%`, background: strColor(s.strength) }} />
-                          </span>
-                        </span>
-                        <span className="stim">{s.time}</span>
+                    {activeTab === "signal" && (
+                      <div>
+                        {signals.length === 0 && <div className="em">No signals yet.</div>}
+                        {signals.map(function(s) {
+                          return (
+                            <div key={s.id} className="shr">
+                              <span className={"db " + s.direction}>{s.direction}</span>
+                              <span className="sr2">{s.summary}</span>
+                              <span className="strb">
+                                <span className="sst" style={{ color: strColor(s.strength) }}>{s.strength}%</span>
+                                <span className="strtr">
+                                  <span className="strfi" style={{ width: s.strength + "%", background: strColor(s.strength) }} />
+                                </span>
+                              </span>
+                              <span className="stim">{s.time}</span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                {activeTab === "trades" && (
-                  <div>
-                    <div className="trow th">
-                      <div>Time</div><div>Dir</div><div>Stake</div><div>Payout</div><div>Profit</div><div>Symbol</div>
+                    {activeTab === "trades" && (
+                      <div>
+                        <div className="trow th">
+                          <div>Time</div><div>Dir</div><div>Stake</div><div>Payout</div><div>Profit</div><div>Sym</div>
+                        </div>
+                        {trades.length === 0 && <div className="em">No trades yet.</div>}
+                        {trades.map(function(t) {
+                          return (
+                            <div key={t.id} className="trow">
+                              <div>{t.time}</div>
+                              <div style={{ color: t.direction === "CALL" ? "#00ff88" : "#ff3d5f" }}>{t.direction}</div>
+                              <div>{t.stake.toFixed(2)}</div>
+                              <div>{t.payout.toFixed(2)}</div>
+                              <div className={t.won ? "pp" : "pn"}>{t.profit.toFixed(2)}</div>
+                              <div>{t.symbol}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {activeTab === "open" && (
+                      <div>
+                        {openContracts.length === 0 && <div className="em">No open contracts.</div>}
+                        {openContracts.map(function(c) {
+                          return (
+                            <div key={c.id} className="oc">
+                              <span style={{ fontSize:9, color:"#4d9968" }}>#{c.id}</span>
+                              <span style={{ fontSize:9 }}>{c.symbol} · {c.direction}</span>
+                              <span style={{ fontSize:9, color:"#b0f0cc" }}>{c.buyPrice}</span>
+                              <span style={{ marginLeft:"auto", fontSize:9, color:"#2a5438" }}>{c.openTime}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {activeTab === "log" && (
+                      <div>
+                        {logs.length === 0 && <div className="em">No logs yet.</div>}
+                        {logs.map(function(l) {
+                          return (
+                            <div key={l.id} className="lr">
+                              <span className="lt">{l.time}</span>
+                              <span className={"lm " + l.type}>{l.msg}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                  </section>
+
+                  <section className="card">
+                    <div className="ct">Notes</div>
+                    <div className="hn">
+                      · Hybrid uses Wilder RSI, true EMA MACD signal, and ATR volatility filter.
+                      Each symbol has individually tuned parameters — V50 is the most aggressive.
+                      Martingale capped at 5% of balance per stake.
+                      Always test on a demo account before going live.
                     </div>
-                    {trades.length === 0 && <div className="em">No trades yet.</div>}
-                    {trades.map(t => (
-                      <div key={t.id} className="trow">
-                        <div>{t.time}</div>
-                        <div style={{ color: t.direction === "CALL" ? "#00ff88" : "#ff3d5f" }}>{t.direction}</div>
-                        <div>{t.stake.toFixed(2)}</div>
-                        <div>{t.payout.toFixed(2)}</div>
-                        <div className={t.won ? "pp" : "pn"}>{t.profit.toFixed(2)}</div>
-                        <div>{t.symbol}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  </section>
 
-                {activeTab === "open" && (
-                  <div>
-                    {openContracts.length === 0 && <div className="em">No open contracts.</div>}
-                    {openContracts.map(c => (
-                      <div key={c.id} className="oc">
-                        <span style={{ fontSize: 9, color: "#4d9968" }}>#{c.id}</span>
-                        <span style={{ fontSize: 9 }}>{c.symbol} · {c.direction}</span>
-                        <span style={{ fontSize: 9, color: "#b0f0cc" }}>{c.buyPrice}</span>
-                        <span style={{ marginLeft: "auto", fontSize: 9, color: "#2a5438" }}>{c.openTime}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </main>
 
-                {activeTab === "log" && (
-                  <div>
-                    {logs.length === 0 && <div className="em">No logs yet.</div>}
-                    {logs.map(l => (
-                      <div key={l.id} className="lr">
-                        <span className="lt">{l.time}</span>
-                        <span className={`lm ${l.type}`}>{l.msg}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+              </div>
 
-              {/* Notes */}
-              <section className="card">
-                <div className="ct">Notes</div>
-                <div className="hn">
-                  · Hybrid uses Wilder RSI, true EMA-based MACD signal, and ATR volatility filter — signals require market movement to be valid.{" "}
-                  · Each symbol has its own tuned parameters. V50 uses the most aggressive settings.{" "}
-                  · Martingale stakes are capped at 5% of balance. Max daily loss is calculated as % of balance at login.{" "}
-                  · Always forward-test on a demo account before going live.
-                </div>
-              </section>
-            </main>
-          </div>
-        </div>
-      </>
-    );
-  }
+            </div>
+          </React.Fragment>
+        );
+      }
 
-  ReactDOM.createRoot(document.getElementById("root")).render(<DerivBot />);
-</script>
-```
-
+      ReactDOM.createRoot(document.getElementById("root")).render(<DerivBot />);
+    </script>
   </body>
 </html>
