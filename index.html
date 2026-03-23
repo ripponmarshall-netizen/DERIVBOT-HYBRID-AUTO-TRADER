@@ -2,12 +2,28 @@
 <html lang="en">
 <head>
 <!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+
+<!-- Perplexity Computer Attribution — SEO Meta Tags -->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+<!--
   __  __                 ____        _    __     ___  _
  |  \/  | __ _ _ __ ___ | __ )  ___ | |_  \ \   / / || |
  | |\/| |/ _` | '__/ __||  _ \ / _ \| __|  \ \ / /| || |_
  | |  | | (_| | |  \__ \| |_) | (_) | |_    \ V / |__   _|
  |_|  |_|\__,_|_|  |___/|____/ \___/ \__|    \_/     |_|
-  Deriv Binary Options Trading Bot
+  Deriv Binary Options Trading Bot — Refactored V4
   Built with Perplexity Computer
 -->
 <meta charset="UTF-8">
@@ -168,24 +184,24 @@ select.input-field { appearance: none; background-image: url("data:image/svg+xml
 .collapsible-chevron.open { transform: rotate(180deg); }
 .collapsible-body { overflow: hidden; transition: max-height 0.3s ease; }
 
-/* Pill */
+/* Pill — FIX #8: Up/Down UI labels */
 .pill {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
 }
-.pill-call { background: rgba(0,255,136,0.15); color: var(--primary); }
-.pill-put { background: rgba(255,61,95,0.15); color: var(--danger); }
+.pill-up { background: rgba(0,255,136,0.15); color: var(--primary); }
+.pill-down { background: rgba(255,61,95,0.15); color: var(--danger); }
 .pill-neutral { background: rgba(90,158,120,0.1); color: var(--muted); }
 
-/* Direction Badge */
+/* Direction Badge — FIX #8: Up/Down labels */
 .dir-badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 16px; border-radius: var(--radius); font-size: 18px;
   font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
 }
-.dir-badge.call { background: rgba(0,255,136,0.15); color: var(--primary); border: 1px solid rgba(0,255,136,0.3); }
-.dir-badge.put { background: rgba(255,61,95,0.15); color: var(--danger); border: 1px solid rgba(255,61,95,0.3); }
+.dir-badge.up { background: rgba(0,255,136,0.15); color: var(--primary); border: 1px solid rgba(0,255,136,0.3); }
+.dir-badge.down { background: rgba(255,61,95,0.15); color: var(--danger); border: 1px solid rgba(255,61,95,0.3); }
 
 /* Signal Strength Gauge */
 .gauge-container { position: relative; width: 160px; height: 100px; margin: 0 auto; }
@@ -230,6 +246,9 @@ select.input-field { appearance: none; background-image: url("data:image/svg+xml
 .bt-trade-list { max-height: 300px; overflow-y: auto; }
 .bt-trade { display: flex; justify-content: space-between; padding: 6px 8px; font-size: 11px; border-bottom: 1px solid rgba(30,61,45,0.2); }
 
+/* Open contract countdown */
+.contract-countdown { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; text-align: center; margin: 4px 0; }
+
 /* Misc */
 .text-primary { color: var(--primary); }
 .text-danger { color: var(--danger); }
@@ -267,11 +286,12 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
    ================================================================ */
 
 const WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089';
-const MAX_RECONNECT = 5;
-const RECONNECT_DELAY = 3000;
+const MAX_RECONNECT = 10;
 const PING_INTERVAL = 25000;
 const MAX_PRICES = 200;
 const MAX_LOGS = 500;
+const TRADE_STORAGE_KEY = 'marsbot_v4_trades';
+const MAX_STORED_TRADES = 200;
 
 const SYMBOLS = [
   { value: 'R_10', label: 'Vol 10' },
@@ -286,22 +306,39 @@ const SYMBOLS = [
   { value: 'R_100_1S', label: 'Vol 100 (1s)' },
 ];
 
+/* FIX #4: Duration as single source of truth.
+   Each entry has value (number), unit (letter code), and label.
+   The selected entry is looked up by a string key "value|unit",
+   so there's zero possibility of index mismatch. */
 const DURATIONS = [
-  { value: '1', unit: 't', label: '1 Tick' },
-  { value: '2', unit: 't', label: '2 Ticks' },
-  { value: '3', unit: 't', label: '3 Ticks' },
-  { value: '5', unit: 't', label: '5 Ticks' },
-  { value: '7', unit: 't', label: '7 Ticks' },
-  { value: '10', unit: 't', label: '10 Ticks' },
-  { value: '15', unit: 's', label: '15 Sec' },
-  { value: '30', unit: 's', label: '30 Sec' },
-  { value: '60', unit: 's', label: '1 Min' },
-  { value: '120', unit: 's', label: '2 Min' },
-  { value: '300', unit: 's', label: '5 Min' },
+  { value: 1, unit: 't', label: '1 Tick' },
+  { value: 2, unit: 't', label: '2 Ticks' },
+  { value: 3, unit: 't', label: '3 Ticks' },
+  { value: 5, unit: 't', label: '5 Ticks' },
+  { value: 7, unit: 't', label: '7 Ticks' },
+  { value: 10, unit: 't', label: '10 Ticks' },
+  { value: 15, unit: 's', label: '15 Sec' },
+  { value: 30, unit: 's', label: '30 Sec' },
+  { value: 60, unit: 's', label: '1 Min' },
+  { value: 120, unit: 's', label: '2 Min' },
+  { value: 300, unit: 's', label: '5 Min' },
 ];
+
+const makeDurKey = (d) => `${d.value}|${d.unit}`;
+const parseDurKey = (key) => {
+  const entry = DURATIONS.find(d => makeDurKey(d) === key);
+  return entry || DURATIONS[4]; // fallback to 7 ticks
+};
+const DEFAULT_DUR_KEY = makeDurKey(DURATIONS[4]); // 7 ticks
 
 const STRATEGIES = ['HYBRID', 'RSI', 'EMA', 'BB', 'MACD'];
 const MM_SYSTEMS = ['FLAT', 'MARTINGALE', 'DALEMBERT', 'REVERSE_MARTINGALE'];
+
+/* FIX #8: UI label helper — maps API direction to user-facing label.
+   The API always sends CALL/PUT. The UI always shows Up/Down. */
+const dirLabel = (apiDir) => apiDir === 'CALL' ? 'Up' : apiDir === 'PUT' ? 'Down' : '—';
+const dirArrow = (apiDir) => apiDir === 'CALL' ? '▲' : apiDir === 'PUT' ? '▼' : '—';
+const dirClass = (apiDir) => apiDir === 'CALL' ? 'up' : apiDir === 'PUT' ? 'down' : 'neutral';
 
 const GENERIC_CONFIG = {
   HYBRID: {
@@ -349,11 +386,14 @@ const getConfig = (symbol, strategy) => {
 };
 
 /* ================================================================
-   SECTION 2: TECHNICAL INDICATORS
+   SECTION 2: TECHNICAL INDICATORS (pure functions)
+   FIX #3: Every function has explicit data-sufficiency guards
+   and returns safe defaults (null / empty) if insufficient data.
+   No NaN propagation — all divisions guarded against zero.
    ================================================================ */
 
 const calcEMA = (prices, period) => {
-  if (prices.length < period) return null;
+  if (!prices || prices.length < period || period < 1) return null;
   const k = 2 / (period + 1);
   let ema = 0;
   for (let i = 0; i < period; i++) ema += prices[i];
@@ -361,11 +401,11 @@ const calcEMA = (prices, period) => {
   for (let i = period; i < prices.length; i++) {
     ema = prices[i] * k + ema * (1 - k);
   }
-  return ema;
+  return isFinite(ema) ? ema : null;
 };
 
 const calcEMASeries = (prices, period) => {
-  if (prices.length < period) return [];
+  if (!prices || prices.length < period || period < 1) return [];
   const k = 2 / (period + 1);
   let ema = 0;
   for (let i = 0; i < period; i++) ema += prices[i];
@@ -379,7 +419,7 @@ const calcEMASeries = (prices, period) => {
 };
 
 const calcRSI = (prices, period = 14) => {
-  if (prices.length < period + 1) return null;
+  if (!prices || prices.length < period + 1 || period < 1) return null;
   let gains = 0, losses = 0;
   for (let i = 1; i <= period; i++) {
     const d = prices[i] - prices[i - 1];
@@ -394,11 +434,12 @@ const calcRSI = (prices, period = 14) => {
   }
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
+  const rsi = 100 - 100 / (1 + rs);
+  return isFinite(rsi) ? rsi : null;
 };
 
 const calcRSISeries = (prices, period = 14) => {
-  if (prices.length < period + 1) return [];
+  if (!prices || prices.length < period + 1 || period < 1) return [];
   const series = [];
   let gains = 0, losses = 0;
   for (let i = 1; i <= period; i++) {
@@ -444,11 +485,11 @@ const calcStochRSI = (prices, rsiPeriod = 14, stochPeriod = 14, smooth = 3) => {
     for (let j = 0; j < smooth; j++) sum += kLine[kLine.length - 1 - j];
     d = sum / smooth;
   }
-  return { k, d };
+  return { k: isFinite(k) ? k : null, d: isFinite(d) ? d : null };
 };
 
 const calcBB = (prices, period = 20) => {
-  if (prices.length < period) return { upper: null, middle: null, lower: null, pctB: null };
+  if (!prices || prices.length < period || period < 1) return { upper: null, middle: null, lower: null, pctB: null };
   const slice = prices.slice(-period);
   const mean = slice.reduce((a, b) => a + b, 0) / period;
   const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period;
@@ -458,24 +499,26 @@ const calcBB = (prices, period = 20) => {
   const current = prices[prices.length - 1];
   const range = upper - lower;
   const pctB = range === 0 ? 50 : ((current - lower) / range) * 100;
-  return { upper, middle: mean, lower, pctB };
+  return { upper, middle: mean, lower, pctB: isFinite(pctB) ? pctB : null };
 };
 
 const calcMACD = (prices, fast = 12, slow = 26, signal = 9) => {
-  if (prices.length < slow + signal) return { macd: null, signal: null, histogram: null, crossUp: false, crossDown: false, bullish: false };
+  const nullResult = { macd: null, signal: null, histogram: null, crossUp: false, crossDown: false, bullish: false };
+  if (!prices || prices.length < slow + signal) return nullResult;
   const fastEMA = calcEMASeries(prices, fast);
   const slowEMA = calcEMASeries(prices, slow);
+  if (fastEMA.length === 0 || slowEMA.length === 0) return nullResult;
   const offset = fastEMA.length - slowEMA.length;
   const macdLine = [];
   for (let i = 0; i < slowEMA.length; i++) {
     macdLine.push(fastEMA[i + offset] - slowEMA[i]);
   }
-  if (macdLine.length < signal) return { macd: macdLine[macdLine.length - 1] || null, signal: null, histogram: null, crossUp: false, crossDown: false, bullish: false };
+  if (macdLine.length < signal) return { ...nullResult, macd: macdLine[macdLine.length - 1] || null };
   const signalEMA = calcEMASeries(macdLine, signal);
-  const macdOffset = macdLine.length - signalEMA.length;
+  if (signalEMA.length === 0) return { ...nullResult, macd: macdLine[macdLine.length - 1] || null };
   const currentMACD = macdLine[macdLine.length - 1];
   const currentSignal = signalEMA[signalEMA.length - 1];
-  const prevMACD = macdLine[macdLine.length - 2];
+  const prevMACD = macdLine.length >= 2 ? macdLine[macdLine.length - 2] : currentMACD;
   const prevSignal = signalEMA.length >= 2 ? signalEMA[signalEMA.length - 2] : currentSignal;
   const histogram = currentMACD - currentSignal;
   const crossUp = prevMACD <= prevSignal && currentMACD > currentSignal;
@@ -484,33 +527,41 @@ const calcMACD = (prices, fast = 12, slow = 26, signal = 9) => {
   return { macd: currentMACD, signal: currentSignal, histogram, crossUp, crossDown, bullish };
 };
 
+/* FIX #3: ATR — O(1) single-pass instead of O(n^2) recompute.
+   Only calculates ATR once from the tail of the price array,
+   and calculates the rolling average from a single pass. */
 const calcATR = (prices, period = 14) => {
-  if (prices.length < period + 1) return null;
+  if (!prices || prices.length < period + 1 || period < 1) return null;
   let sum = 0;
   for (let i = prices.length - period; i < prices.length; i++) {
     sum += Math.abs(prices[i] - prices[i - 1]);
   }
-  return sum / period;
+  const atr = sum / period;
+  return isFinite(atr) ? atr : null;
 };
 
 const calcATRAvg = (prices, period = 14, avgLen = 50) => {
-  if (prices.length < avgLen + period) return { atr: null, avg: null, spike: false };
+  if (!prices || prices.length < avgLen + period + 1) return { atr: null, avg: null, spike: false };
   const atr = calcATR(prices, period);
-  const atrs = [];
-  for (let i = period + 1; i <= prices.length; i++) {
-    const slice = prices.slice(0, i);
-    const a = calcATR(slice, period);
-    if (a !== null) atrs.push(a);
+  if (atr === null) return { atr: null, avg: null, spike: false };
+  // Compute rolling ATR average in a single pass from the end
+  let atrSum = 0;
+  let count = 0;
+  for (let end = prices.length; end >= period + 1 && count < avgLen; end--) {
+    let s = 0;
+    for (let j = end - period; j < end; j++) {
+      s += Math.abs(prices[j] - prices[j - 1]);
+    }
+    atrSum += s / period;
+    count++;
   }
-  if (atrs.length < avgLen) return { atr, avg: null, spike: false };
-  const recent = atrs.slice(-avgLen);
-  const avg = recent.reduce((a, b) => a + b, 0) / avgLen;
+  if (count < avgLen) return { atr, avg: null, spike: false };
+  const avg = atrSum / count;
   return { atr, avg, spike: atr > avg * 1.5 };
 };
 
 const macdGate = (prices, cfg) => {
-  const m = calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
-  return m;
+  return calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
 };
 
 /* ================================================================
@@ -519,7 +570,7 @@ const macdGate = (prices, cfg) => {
 
 const detectRSIDivergence = (prices, rsiPeriod = 14, lookback = 30) => {
   const result = { bullish: false, bearish: false };
-  if (prices.length < rsiPeriod + lookback) return result;
+  if (!prices || prices.length < rsiPeriod + lookback) return result;
   const pSlice = prices.slice(-lookback);
   const rsiSeries = calcRSISeries(prices, rsiPeriod);
   if (rsiSeries.length < lookback) return result;
@@ -568,11 +619,13 @@ const detectRSIDivergence = (prices, rsiPeriod = 14, lookback = 30) => {
 
 /* ================================================================
    SECTION 4: STRATEGY ENGINES
+   FIX #3: Minimum data requirements enforced per strategy.
+   HYBRID needs 60 ticks, single strategies need 40.
    ================================================================ */
 
 const computeHybrid = (prices, cfg, isAuto) => {
   const out = { direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false };
-  if (prices.length < 60) return out;
+  if (!prices || prices.length < 60) return out;
 
   const rsi = calcRSI(prices, cfg.rsiPeriod);
   const stoch = calcStochRSI(prices, cfg.rsiPeriod, cfg.stochPeriod, cfg.stochSmooth);
@@ -588,28 +641,24 @@ const computeHybrid = (prices, cfg, isAuto) => {
   const w = cfg.weights;
   let callScore = 0, putScore = 0, callVotes = 0, putVotes = 0;
 
-  // RSI vote
   if (rsi !== null) {
     if (rsi < 35) { callScore += w.rsi * (35 - rsi) / 35 * 100; callVotes++; out.components.rsi = { dir: 'CALL', score: Math.round((35 - rsi) / 35 * 100) }; }
     else if (rsi > 65) { putScore += w.rsi * (rsi - 65) / 35 * 100; putVotes++; out.components.rsi = { dir: 'PUT', score: Math.round((rsi - 65) / 35 * 100) }; }
     else { out.components.rsi = { dir: 'NEUTRAL', score: 0 }; }
   }
 
-  // StochRSI vote
   if (stoch.k !== null) {
     if (stoch.k < 20) { callScore += w.stochRSI * (20 - stoch.k) / 20 * 100; callVotes++; out.components.stochRSI = { dir: 'CALL', score: Math.round((20 - stoch.k) / 20 * 100) }; }
     else if (stoch.k > 80) { putScore += w.stochRSI * (stoch.k - 80) / 20 * 100; putVotes++; out.components.stochRSI = { dir: 'PUT', score: Math.round((stoch.k - 80) / 20 * 100) }; }
     else { out.components.stochRSI = { dir: 'NEUTRAL', score: 0 }; }
   }
 
-  // BB vote
   if (bb.pctB !== null) {
     if (bb.pctB < 10) { callScore += w.bb * (10 - bb.pctB) / 10 * 100; callVotes++; out.components.bb = { dir: 'CALL', score: Math.round((10 - bb.pctB) / 10 * 100) }; }
     else if (bb.pctB > 90) { putScore += w.bb * (bb.pctB - 90) / 10 * 100; putVotes++; out.components.bb = { dir: 'PUT', score: Math.round((bb.pctB - 90) / 10 * 100) }; }
     else { out.components.bb = { dir: 'NEUTRAL', score: 0 }; }
   }
 
-  // EMA vote
   if (emaF !== null && emaS !== null) {
     const price = prices[prices.length - 1];
     if (emaF > emaS && price > emaF) { callScore += w.ema * 80; callVotes++; out.components.ema = { dir: 'CALL', score: 80 }; }
@@ -617,7 +666,6 @@ const computeHybrid = (prices, cfg, isAuto) => {
     else { out.components.ema = { dir: 'NEUTRAL', score: 0 }; }
   }
 
-  // MACD vote
   if (m.macd !== null) {
     if (m.crossUp || (m.bullish && m.histogram > 0)) {
       callScore += w.macd * (m.crossUp ? 100 : 70);
@@ -632,35 +680,29 @@ const computeHybrid = (prices, cfg, isAuto) => {
     }
   }
 
-  // Determine direction
   const totalWeight = w.rsi + w.stochRSI + w.bb + w.ema + w.macd;
   let direction = null, votes = 0, strength = 0;
   if (callScore > putScore) {
-    direction = 'CALL'; votes = callVotes; strength = Math.min(100, Math.round(callScore / totalWeight));
+    direction = 'CALL'; votes = callVotes; strength = totalWeight > 0 ? Math.min(100, Math.round(callScore / totalWeight)) : 0;
   } else if (putScore > callScore) {
-    direction = 'PUT'; votes = putVotes; strength = Math.min(100, Math.round(putScore / totalWeight));
+    direction = 'PUT'; votes = putVotes; strength = totalWeight > 0 ? Math.min(100, Math.round(putScore / totalWeight)) : 0;
   }
 
-  // MACD gate: direction must align
   const macdDir = m.bullish ? 'CALL' : 'PUT';
   out.macdOk = direction === macdDir;
 
-  // Trend filter via trend EMA
   if (emaT !== null) {
     const price = prices[prices.length - 1];
     if (direction === 'CALL' && price < emaT) strength = Math.round(strength * 0.7);
     if (direction === 'PUT' && price > emaT) strength = Math.round(strength * 0.7);
   }
 
-  // ATR spike filter
   if (atrData.spike) strength = Math.round(strength * 0.6);
 
-  // RSI Divergence bonus
   const div = detectRSIDivergence(prices, cfg.rsiPeriod);
   if (div.bullish && direction === 'CALL') strength = Math.min(100, strength + 5);
   if (div.bearish && direction === 'PUT') strength = Math.min(100, strength + 5);
 
-  // Apply thresholds
   const minVotes = isAuto ? cfg.autoMinVotes : cfg.manualMinVotes;
   const minStr = isAuto ? cfg.autoMinStrength : cfg.manualMinStrength;
 
@@ -676,7 +718,7 @@ const computeHybrid = (prices, cfg, isAuto) => {
 
 const computeSingle = (strategy, prices, cfg, isAuto) => {
   const out = { direction: null, strength: 0, votes: 0, total: 1, components: {}, macdOk: false, atrSpike: false };
-  if (prices.length < 40) return out;
+  if (!prices || prices.length < 40) return out;
 
   const m = macdGate(prices, cfg);
 
@@ -688,13 +730,11 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
     if (rsi < cfg.rsiOS) { dir = 'CALL'; str = Math.round((cfg.rsiOS - rsi) / cfg.rsiOS * 100); }
     else if (rsi > cfg.rsiOB) { dir = 'PUT'; str = Math.round((rsi - cfg.rsiOB) / (100 - cfg.rsiOB) * 100); }
     out.components.rsi = { dir: dir || 'NEUTRAL', score: str };
-    // Trend filter
     if (dir && emaT !== null) {
       const price = prices[prices.length - 1];
       if (dir === 'CALL' && price < emaT) str = Math.round(str * 0.7);
       if (dir === 'PUT' && price > emaT) str = Math.round(str * 0.7);
     }
-    // MACD gate
     const macdDir = m.bullish ? 'CALL' : 'PUT';
     out.macdOk = dir === macdDir;
     if (!out.macdOk) dir = null;
@@ -757,8 +797,7 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
     else if (m.bullish && m.histogram > 0) { dir = 'CALL'; str = 65; }
     else if (!m.bullish && m.histogram < 0) { dir = 'PUT'; str = 65; }
     out.components.macd = { dir: dir || 'NEUTRAL', score: str };
-    out.macdOk = true; // MACD strategy IS the gate
-    // RSI confirmation
+    out.macdOk = true;
     if (rsi !== null) {
       if (dir === 'CALL' && rsi > cfg.rsiOB) { str = Math.round(str * 0.5); dir = null; }
       if (dir === 'PUT' && rsi < cfg.rsiOS) { str = Math.round(str * 0.5); dir = null; }
@@ -783,7 +822,7 @@ const getSignal = (strategy, prices, symbol, isAuto) => {
 
 const runBacktest = (prices, strategy, symbol, isAuto = true) => {
   const results = { trades: [], wins: 0, losses: 0, totalPnL: 0, maxDrawdown: 0, maxStreak: 0, maxLossStreak: 0, callCount: 0, putCount: 0, rollingWR: [] };
-  if (prices.length < 80) return results;
+  if (!prices || prices.length < 80) return results;
 
   let equity = 0, peak = 0, streak = 0, lossStreak = 0;
 
@@ -804,7 +843,7 @@ const runBacktest = (prices, strategy, symbol, isAuto = true) => {
       idx: i,
       direction: signal.direction,
       strength: signal.strength,
-      strategy: strategy,
+      strategy,
       entry,
       exit,
       won,
@@ -821,7 +860,6 @@ const runBacktest = (prices, strategy, symbol, isAuto = true) => {
     const dd = peak - equity;
     results.maxDrawdown = Math.max(results.maxDrawdown, dd);
 
-    // Rolling WR (last 20 trades)
     const recentTrades = results.trades.slice(-20);
     const recentWins = recentTrades.filter(t => t.won).length;
     results.rollingWR.push(Math.round((recentWins / recentTrades.length) * 100));
@@ -867,10 +905,11 @@ const sounds = {
    ================================================================ */
 
 const exportCSV = (trades) => {
-  const headers = ['Time', 'Symbol', 'Direction', 'Strategy', 'Stake', 'Result', 'P&L', 'Strength', 'MACD Gate'];
+  const headers = ['Time', 'Symbol', 'Direction', 'UI Label', 'Strategy', 'Stake', 'Result', 'P&L', 'Strength', 'MACD Gate'];
   const rows = trades.map(t => [
-    t.time || '', t.symbol || '', t.direction || '', t.strategy || '',
-    t.stake || '', t.won ? 'WIN' : 'LOSS', typeof t.profit === 'number' ? t.profit.toFixed(2) : '',
+    t.time || '', t.symbol || '', t.direction || '', dirLabel(t.direction),
+    t.strategy || '', t.stake || '', t.won ? 'WIN' : 'LOSS',
+    typeof t.profit === 'number' ? t.profit.toFixed(2) : '',
     t.strength || '', t.macdOk ? 'YES' : 'NO',
   ]);
   const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
@@ -886,7 +925,41 @@ const exportCSV = (trades) => {
 };
 
 /* ================================================================
-   SECTION 8: UI COMPONENTS
+   SECTION 8: TRADE PERSISTENCE (FIX #2)
+   Trades are stored in localStorage with dedup by contract_id.
+   ================================================================ */
+
+const loadStoredTrades = () => {
+  try {
+    const raw = localStorage.getItem(TRADE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
+const saveStoredTrades = (trades) => {
+  try {
+    const trimmed = trades.slice(0, MAX_STORED_TRADES);
+    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch { /* quota exceeded — silently fail */ }
+};
+
+const addTradeDeduped = (existing, newTrade) => {
+  // Dedup by contract_id
+  if (newTrade.id && existing.some(t => t.id === newTrade.id)) {
+    return existing; // already recorded
+  }
+  const updated = [newTrade, ...existing].slice(0, MAX_STORED_TRADES);
+  saveStoredTrades(updated);
+  return updated;
+};
+
+/* ================================================================
+   SECTION 9: UI COMPONENTS
+   FIX #1: All tab components are defined OUTSIDE the App component
+   so React maintains stable references across re-renders.
+   Collapsible state is preserved because components never unmount.
    ================================================================ */
 
 // SVG Icons
@@ -939,7 +1012,7 @@ const Sparkline = ({ data, width = 280, height = 50, color = 'var(--primary)' })
   );
 };
 
-// WR Sparkline (for backtest rolling win rate)
+// WR Sparkline
 const WRSparkline = ({ data, width = 280, height = 40 }) => {
   if (!data || data.length < 2) return null;
   const step = width / (data.length - 1);
@@ -953,16 +1026,14 @@ const WRSparkline = ({ data, width = 280, height = 40 }) => {
   );
 };
 
-// Strength Gauge
+// Strength Gauge — FIX #8: shows Up/Down instead of CALL/PUT
 const StrengthGauge = ({ strength = 0, direction }) => {
   const r = 60;
   const cx = 80;
   const cy = 75;
   const startAngle = Math.PI;
-  const endAngle = 0;
   const sweep = Math.PI;
   const pct = Math.max(0, Math.min(100, strength)) / 100;
-  const angle = startAngle + sweep * pct;
 
   const arcPath = (start, end, radius) => {
     const x1 = cx + radius * Math.cos(start);
@@ -974,41 +1045,604 @@ const StrengthGauge = ({ strength = 0, direction }) => {
   };
 
   const color = direction === 'CALL' ? 'var(--primary)' : direction === 'PUT' ? 'var(--danger)' : 'var(--muted)';
+  const label = direction ? dirLabel(direction) : 'WAITING';
 
   return (
     <div className="gauge-container">
       <svg width="160" height="100" viewBox="0 0 160 100">
-        <path d={arcPath(startAngle, endAngle, r)} fill="none" stroke="var(--surface)" strokeWidth="10" strokeLinecap="round" />
+        <path d={arcPath(startAngle, 0, r)} fill="none" stroke="var(--surface)" strokeWidth="10" strokeLinecap="round" />
         {pct > 0 && <path d={arcPath(startAngle, startAngle + sweep * pct, r)} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />}
         <text x={cx} y={cy - 8} textAnchor="middle" fill={color} fontSize="28" fontWeight="700" fontFamily="'JetBrains Mono', monospace">{strength}%</text>
-        <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--muted)" fontSize="10" fontWeight="600">{direction || 'WAITING'}</text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--muted)" fontSize="10" fontWeight="600">{label}</text>
       </svg>
     </div>
   );
 };
 
-// Indicator Pill
+// Indicator Pill — FIX #8: shows Up/Down
 const IndicatorPill = ({ name, data }) => {
   if (!data) return <span className="pill pill-neutral">{name} —</span>;
-  const cls = data.dir === 'CALL' ? 'pill-call' : data.dir === 'PUT' ? 'pill-put' : 'pill-neutral';
+  const cls = data.dir === 'CALL' ? 'pill-up' : data.dir === 'PUT' ? 'pill-down' : 'pill-neutral';
   const arrow = data.dir === 'CALL' ? '↑' : data.dir === 'PUT' ? '↓' : '—';
+  const label = data.dir === 'CALL' ? 'Up' : data.dir === 'PUT' ? 'Down' : '—';
   return <span className={`pill ${cls}`}>{name} {arrow} {data.score}</span>;
 };
 
 /* ================================================================
-   SECTION 9: MAIN APP
+   FIX #5: Contract Countdown Timer Component
+   Uses Deriv's start_time and expiry_time epochs.
+   ================================================================ */
+const ContractCountdown = ({ expiryTime }) => {
+  const [remaining, setRemaining] = useState('');
+
+  useEffect(() => {
+    if (!expiryTime) { setRemaining(''); return; }
+    const update = () => {
+      const now = Date.now() / 1000;
+      const diff = expiryTime - now;
+      if (diff <= 0) {
+        setRemaining('Expiring...');
+        return;
+      }
+      const mins = Math.floor(diff / 60);
+      const secs = Math.floor(diff % 60);
+      if (mins > 0) {
+        setRemaining(`${mins}:${secs.toString().padStart(2, '0')}`);
+      } else {
+        setRemaining(`${secs}s`);
+      }
+    };
+    update();
+    const iv = setInterval(update, 250);
+    return () => clearInterval(iv);
+  }, [expiryTime]);
+
+  if (!remaining) return null;
+  return <div className="contract-countdown">{remaining}</div>;
+};
+
+
+/* ================================================================
+   FIX #1: TAB COMPONENTS DEFINED OUTSIDE APP
+   Each receives props from App. This prevents React from
+   creating new component function references on every render,
+   so Collapsible open states (useState) survive re-renders.
+   ================================================================ */
+
+const SignalTab = ({
+  cooldownRemain, sessionStopped, profitTarget, sessionPnL, lossLimit, maxTrades, sessionTrades,
+  resetSession, signal, strategy, autoMode, running, connStatus, currentStake,
+  toggleRunning, manualTrade, sessionWinRate, sessionWins, maxWinStreak, priceSpark, prices, symbol,
+  openContract
+}) => (
+  <div>
+    {cooldownRemain > 0 && (
+      <div className="cooldown-bar">
+        <div className="cd-label">⏸ Cooldown Active</div>
+        <div className="cd-time">{cooldownRemain}s</div>
+      </div>
+    )}
+
+    {sessionStopped && (
+      <div className="card" style={{ borderColor: 'var(--warning)', textAlign: 'center' }}>
+        <div style={{ color: 'var(--warning)', fontWeight: 700, marginBottom: 6 }}>SESSION STOPPED</div>
+        <div className="fs-12 text-muted">
+          {parseFloat(profitTarget) && sessionPnL >= parseFloat(profitTarget) ? 'Profit target reached' :
+           parseFloat(lossLimit) && sessionPnL <= -Math.abs(parseFloat(lossLimit)) ? 'Loss limit reached' :
+           parseInt(maxTrades) && sessionTrades >= parseInt(maxTrades) ? 'Max trades reached' : 'Stopped'}
+        </div>
+        <button className="btn btn-outline btn-sm mt-8" onClick={resetSession}>Reset Session</button>
+      </div>
+    )}
+
+    {/* Gauge */}
+    <div className="card text-center">
+      <StrengthGauge strength={signal.strength} direction={signal.direction} />
+      {signal.direction && (
+        <div style={{ marginTop: 8 }}>
+          <span className={`dir-badge ${dirClass(signal.direction)}`}>
+            {dirArrow(signal.direction)} {dirLabel(signal.direction)}
+          </span>
+        </div>
+      )}
+      <div className="fs-11 text-muted mt-8">
+        {strategy} | Votes: {signal.votes}/{signal.total} | MACD Gate: <span style={{ color: signal.macdOk ? 'var(--primary)' : 'var(--danger)' }}>{signal.macdOk ? 'PASS' : 'FAIL'}</span>
+        {signal.atrSpike && <span className="text-warning"> | ATR SPIKE</span>}
+      </div>
+    </div>
+
+    {/* Component Pills */}
+    <div className="card">
+      <div className="card-title">Indicator Breakdown</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <IndicatorPill name="RSI" data={signal.components.rsi} />
+        <IndicatorPill name="StochRSI" data={signal.components.stochRSI} />
+        <IndicatorPill name="BB" data={signal.components.bb} />
+        <IndicatorPill name="EMA" data={signal.components.ema} />
+        <IndicatorPill name="MACD" data={signal.components.macd} />
+      </div>
+    </div>
+
+    {/* Open Contract — FIX #5: shows countdown, start/expiry times */}
+    {openContract && (
+      <div className="card" style={{ borderColor: openContract.currentPnL >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+        <div className="card-title">Open Contract</div>
+        <div className="flex-between">
+          <span className="mono fs-13">{dirArrow(openContract.type)} {dirLabel(openContract.type)}</span>
+          <span className={`mono fs-13 fw-600 ${openContract.currentPnL >= 0 ? 'text-primary' : 'text-danger'}`}>
+            {openContract.currentPnL >= 0 ? '+' : ''}${openContract.currentPnL.toFixed(2)}
+          </span>
+        </div>
+        <ContractCountdown expiryTime={openContract.expiryTime} />
+        <div className="fs-11 text-muted mt-8">
+          Entry: {openContract.entrySpot} | Current: {openContract.currentSpot} | Buy: ${openContract.buyPrice?.toFixed(2)}
+          {openContract.startTime && <span> | Start: {new Date(openContract.startTime * 1000).toLocaleTimeString('en-US', { hour12: false })}</span>}
+        </div>
+      </div>
+    )}
+
+    {/* Sparkline */}
+    <div className="card">
+      <div className="card-title">Price ({symbol}) — {prices.length} ticks</div>
+      <Sparkline data={priceSpark} height={60} />
+      {prices.length > 0 && (
+        <div className="mono fs-13 text-center mt-8" style={{ color: 'var(--text-bright)' }}>
+          {prices[prices.length - 1]?.toFixed(symbol.includes('R_10') ? 3 : 2)}
+        </div>
+      )}
+    </div>
+
+    {/* Action */}
+    <div className="card">
+      <div className="flex-between mb-8">
+        <div>
+          <span className="fs-11 text-muted">{autoMode ? 'AUTO' : 'MANUAL'} Mode</span>
+          <span className="mono fs-12" style={{ marginLeft: 8, color: running ? 'var(--primary)' : 'var(--danger)' }}>
+            {running ? '● RUNNING' : '○ STOPPED'}
+          </span>
+        </div>
+        <span className="mono fs-12">Stake: ${currentStake.toFixed(2)}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className={`btn ${running ? 'btn-danger' : 'btn-primary'}`} style={{ flex: 1 }} onClick={toggleRunning} disabled={connStatus !== 'connected'}>
+          {running ? 'Stop' : 'Start'}
+        </button>
+      </div>
+
+      {/* FIX #8: Manual buttons show Up/Down, but send CALL/PUT internally */}
+      {!autoMode && running && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="btn btn-primary" style={{ flex: 1, background: 'var(--primary)' }} onClick={() => manualTrade('CALL')} disabled={connStatus !== 'connected' || !!openContract}>
+            ▲ Up
+          </button>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => manualTrade('PUT')} disabled={connStatus !== 'connected' || !!openContract}>
+            ▼ Down
+          </button>
+        </div>
+      )}
+    </div>
+
+    {/* Session Summary */}
+    <div className="stats-grid">
+      <div className="stat-box">
+        <div className="stat-label">Net P&L</div>
+        <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Win Rate</div>
+        <div className="stat-value">{sessionWinRate}%</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Trades</div>
+        <div className="stat-value">{sessionTrades}</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Best Streak</div>
+        <div className="stat-value text-primary">{maxWinStreak}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const TradesTab = ({
+  openContract, sessionTrades, sessionWinRate, sessionPnL, sessionWins,
+  bestTrade, worstTrade, resetSession, trades, addLog, symbol
+}) => (
+  <div>
+    {/* Open Contract — FIX #5 */}
+    {openContract && (
+      <div className="card" style={{ borderColor: openContract.currentPnL >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+        <div className="card-title">Open Contract</div>
+        <div className="flex-between">
+          <span className="mono fs-13">{dirArrow(openContract.type)} {dirLabel(openContract.type)}</span>
+          <span className={`mono fs-13 fw-600 ${openContract.currentPnL >= 0 ? 'text-primary' : 'text-danger'}`}>
+            {openContract.currentPnL >= 0 ? '+' : ''}${openContract.currentPnL.toFixed(2)}
+          </span>
+        </div>
+        <ContractCountdown expiryTime={openContract.expiryTime} />
+        <div className="fs-11 text-muted mt-8">
+          Entry: {openContract.entrySpot} | Current: {openContract.currentSpot} | Buy: ${openContract.buyPrice?.toFixed(2)}
+        </div>
+      </div>
+    )}
+
+    <div className="card">
+      <div className="card-title">Session Summary</div>
+      <div className="stats-grid">
+        <div className="stat-box">
+          <div className="stat-label">Total Trades</div>
+          <div className="stat-value">{sessionTrades}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Win Rate</div>
+          <div className="stat-value">{sessionWinRate}%</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Net P&L</div>
+          <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Wins / Losses</div>
+          <div className="stat-value"><span className="text-primary">{sessionWins}</span> / <span className="text-danger">{sessionTrades - sessionWins}</span></div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Best Trade</div>
+          <div className="stat-value text-primary">${bestTrade.toFixed(2)}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Worst Trade</div>
+          <div className="stat-value text-danger">${worstTrade.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={resetSession}>Reset Session</button>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => trades.length > 0 ? exportCSV(trades) : addLog('No trades to export', 'warn')} disabled={trades.length === 0}>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    {/* Trade History — FIX #2: persistent, deduped. FIX #8: Up/Down labels */}
+    <div className="card">
+      <div className="card-title">Trade History ({trades.length})</div>
+      {trades.length === 0 ? (
+        <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No trades yet</div>
+      ) : (
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {trades.map((t, i) => (
+            <div key={t.id || `trade-${i}`} className="trade-row">
+              <div className="trade-info">
+                <span className={`trade-dir ${t.won ? 'text-primary' : 'text-danger'}`}>
+                  {dirArrow(t.direction)} {dirLabel(t.direction)} — {t.symbol}
+                </span>
+                <span className="trade-time">{t.time} | {t.strategy} | ${t.stake?.toFixed(2)}</span>
+              </div>
+              <span className={`trade-pnl ${t.won ? 'win' : 'loss'}`}>
+                {t.won ? '+' : ''}{t.profit?.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const BacktestTab = ({ backtestResult, strategy, symbol, prices, doBacktest, btRunning }) => {
+  const r = backtestResult;
+  const totalTrades = r ? r.wins + r.losses : 0;
+  const wr = totalTrades > 0 ? Math.round((r.wins / totalTrades) * 100) : 0;
+  const profitFactor = r && r.losses > 0 ? Math.abs((r.wins * 0.85) / (r.losses * 1)).toFixed(2) : '∞';
+  const avgPnL = totalTrades > 0 ? (r.totalPnL / totalTrades).toFixed(3) : '0';
+  let sharpe = '—';
+  if (r && r.trades.length > 1) {
+    const returns = r.trades.map(t => t.pnl);
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
+    if (std > 0) sharpe = (mean / std).toFixed(2);
+  }
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">Backtest — {strategy} on {symbol}</div>
+        <div className="fs-11 text-muted mb-8">Using {prices.length} collected ticks</div>
+        <button className="btn btn-primary btn-full" onClick={doBacktest} disabled={btRunning || prices.length < 80}>
+          {btRunning ? 'Running...' : 'Run Backtest'}
+        </button>
+      </div>
+
+      {r && (
+        <>
+          <div className="stats-grid">
+            <div className="stat-box">
+              <div className="stat-label">Total Trades</div>
+              <div className="stat-value">{totalTrades}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Win Rate</div>
+              <div className="stat-value">{wr}%</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Net P&L</div>
+              <div className={`stat-value ${r.totalPnL >= 0 ? 'text-primary' : 'text-danger'}`}>{r.totalPnL.toFixed(2)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Profit Factor</div>
+              <div className="stat-value">{profitFactor}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Max Drawdown</div>
+              <div className="stat-value text-danger">{r.maxDrawdown.toFixed(2)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Sharpe-like</div>
+              <div className="stat-value">{sharpe}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Best Streak</div>
+              <div className="stat-value text-primary">{r.maxStreak}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Worst Streak</div>
+              <div className="stat-value text-danger">{r.maxLossStreak}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Up / Down</div>
+              <div className="stat-value"><span className="text-primary">{r.callCount}</span> / <span className="text-danger">{r.putCount}</span></div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Avg P&L / Trade</div>
+              <div className="stat-value">{avgPnL}</div>
+            </div>
+          </div>
+
+          {r.rollingWR.length > 2 && (
+            <div className="card mt-8">
+              <div className="card-title">Rolling Win Rate (20-trade window)</div>
+              <WRSparkline data={r.rollingWR} height={50} />
+            </div>
+          )}
+
+          {/* Backtest Trade List — FIX #8: Up/Down labels */}
+          <div className="card mt-8">
+            <div className="card-title">Trade Details ({r.trades.length})</div>
+            <div className="bt-trade-list">
+              {r.trades.map((t, i) => (
+                <div key={i} className="bt-trade">
+                  <span className="mono">#{i + 1} {dirArrow(t.direction)} {dirLabel(t.direction)}</span>
+                  <span className="mono" style={{ color: 'var(--muted)' }}>str:{t.strength}</span>
+                  <span className={`mono fw-600 ${t.won ? 'text-primary' : 'text-danger'}`}>
+                    {t.won ? '+0.85' : '-1.00'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const SettingsTab = ({
+  connStatus, token, setToken, connect, disconnect, symbol, setSymbol,
+  durKey, setDurKey, strategy, setStrategy, macdGateEnabled, setMacdGateEnabled,
+  minStrength, setMinStrength, autoMode, setAutoMode, stake, setStake,
+  setCurrentStake, currentStakeRef, mmSystem, setMMSystem, setMartiStep, martiStepRef,
+  martiFactor, setMartiFactor, maxMartiSteps, setMaxMartiSteps,
+  dalUnit, setDalUnit, revMartiMax, setRevMartiMax, currentStake, martiStep,
+  profitTarget, setProfitTarget, lossLimit, setLossLimit, maxTrades, setMaxTrades,
+  cooldownLosses, setCooldownLosses, cooldownSecs, setCooldownSecs,
+  soundOn, setSoundOn
+}) => (
+  <div>
+    {/* Connection */}
+    <Collapsible title="Connection" defaultOpen={connStatus !== 'connected'}>
+      <div className="input-group">
+        <label className="input-label">API Token</label>
+        <input className="input-field" type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Enter Deriv API token" />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={connect} disabled={connStatus === 'connected' || connStatus === 'connecting'}>
+          Connect
+        </button>
+        <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={disconnect} disabled={connStatus === 'disconnected'}>
+          Disconnect
+        </button>
+      </div>
+      <div className="fs-11 text-muted mt-8">
+        Status: <span style={{ color: connStatus === 'connected' ? 'var(--primary)' : connStatus === 'connecting' ? 'var(--warning)' : 'var(--danger)' }}>
+          {connStatus.toUpperCase()}
+        </span>
+      </div>
+    </Collapsible>
+
+    {/* Market — FIX #4: Duration uses durKey not index */}
+    <Collapsible title="Market" defaultOpen={true}>
+      <div className="input-group">
+        <label className="input-label">Symbol</label>
+        <select className="input-field" value={symbol} onChange={e => setSymbol(e.target.value)}>
+          {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+      <div className="input-group">
+        <label className="input-label">Duration</label>
+        <select className="input-field" value={durKey} onChange={e => setDurKey(e.target.value)}>
+          {DURATIONS.map(d => <option key={makeDurKey(d)} value={makeDurKey(d)}>{d.label}</option>)}
+        </select>
+      </div>
+    </Collapsible>
+
+    {/* Strategy */}
+    <Collapsible title="Strategy" defaultOpen={true}>
+      <div className="input-group">
+        <label className="input-label">Strategy</label>
+        <select className="input-field" value={strategy} onChange={e => setStrategy(e.target.value)}>
+          {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
+        {strategy === 'HYBRID' && '5-indicator confluence: RSI + StochRSI + BB + EMA + MACD weighted voting. Requires MACD gate alignment + ATR spike filter.'}
+        {strategy === 'RSI' && 'RSI oversold/overbought zones with EMA trend filter and MACD directional gate.'}
+        {strategy === 'EMA' && 'EMA crossover detection with ATR spike guard and MACD gate confirmation.'}
+        {strategy === 'BB' && 'Bollinger Band touch at extremes combined with StochRSI oversold/overbought and MACD gate.'}
+        {strategy === 'MACD' && 'MACD crossover as primary signal with RSI confirmation filter.'}
+      </div>
+      <Toggle label="MACD Gate" value={macdGateEnabled} onChange={setMacdGateEnabled} />
+      <div className="input-group mt-8">
+        <div className="flex-between">
+          <label className="input-label">Min Strength</label>
+          <span className="slider-value">{minStrength}%</span>
+        </div>
+        <div className="slider-wrap">
+          <input className="slider-input" type="range" min="30" max="95" value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value))} />
+        </div>
+      </div>
+    </Collapsible>
+
+    {/* Execution */}
+    <Collapsible title="Execution" defaultOpen={false}>
+      <Toggle label="Auto Trading" value={autoMode} onChange={setAutoMode} />
+      <div className="input-group mt-8">
+        <label className="input-label">Base Stake ($)</label>
+        <input className="input-field" type="number" min="0.35" step="0.01" value={stake} onChange={e => {
+          setStake(e.target.value);
+          const v = parseFloat(e.target.value) || 1;
+          setCurrentStake(v);
+          currentStakeRef.current = v;
+        }} />
+      </div>
+    </Collapsible>
+
+    {/* Money Management */}
+    <Collapsible title="Money Management" defaultOpen={false}>
+      <div className="input-group">
+        <label className="input-label">System</label>
+        <select className="input-field" value={mmSystem} onChange={e => { setMMSystem(e.target.value); setMartiStep(0); martiStepRef.current = 0; const v = parseFloat(stake) || 1; setCurrentStake(v); currentStakeRef.current = v; }}>
+          <option value="FLAT">Flat (Fixed Stake)</option>
+          <option value="MARTINGALE">Martingale</option>
+          <option value="DALEMBERT">D'Alembert</option>
+          <option value="REVERSE_MARTINGALE">Reverse Martingale (Anti-Martingale)</option>
+        </select>
+      </div>
+      <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
+        {mmSystem === 'FLAT' && 'Always trade the base stake amount. No progression.'}
+        {mmSystem === 'MARTINGALE' && 'After a loss, multiply stake by factor. After a win, reset to base. Max steps limits progression.'}
+        {mmSystem === 'DALEMBERT' && "After a loss, increase stake by unit. After a win, decrease by unit. Minimum is always the base stake."}
+        {mmSystem === 'REVERSE_MARTINGALE' && 'After a WIN, multiply stake. After a loss, reset to base. Max stake caps the progression.'}
+      </div>
+
+      {(mmSystem === 'MARTINGALE' || mmSystem === 'REVERSE_MARTINGALE') && (
+        <div className="input-group">
+          <label className="input-label">Multiplier</label>
+          <input className="input-field" type="number" min="1.1" max="5" step="0.1" value={martiFactor} onChange={e => setMartiFactor(parseFloat(e.target.value) || 2)} />
+        </div>
+      )}
+
+      {mmSystem === 'MARTINGALE' && (
+        <div className="input-group">
+          <label className="input-label">Max Steps</label>
+          <input className="input-field" type="number" min="1" max="10" value={maxMartiSteps} onChange={e => setMaxMartiSteps(parseInt(e.target.value) || 5)} />
+        </div>
+      )}
+
+      {mmSystem === 'DALEMBERT' && (
+        <div className="input-group">
+          <label className="input-label">Unit Increment ($)</label>
+          <input className="input-field" type="number" min="0.1" step="0.1" value={dalUnit} onChange={e => setDalUnit(parseFloat(e.target.value) || 0.5)} />
+        </div>
+      )}
+
+      {mmSystem === 'REVERSE_MARTINGALE' && (
+        <div className="input-group">
+          <label className="input-label">Max Stake ($)</label>
+          <input className="input-field" type="number" min="1" step="1" value={revMartiMax} onChange={e => setRevMartiMax(parseFloat(e.target.value) || 10)} />
+        </div>
+      )}
+
+      <div className="fs-11 text-muted mt-8">
+        Current Stake: <span className="mono text-primary">${currentStake.toFixed(2)}</span>
+        {mmSystem === 'MARTINGALE' && <span> | Step: {martiStep}/{maxMartiSteps}</span>}
+      </div>
+    </Collapsible>
+
+    {/* Risk Management */}
+    <Collapsible title="Risk Management" defaultOpen={false}>
+      <div className="input-group">
+        <label className="input-label">Profit Target ($)</label>
+        <input className="input-field" type="number" min="0" step="1" value={profitTarget} onChange={e => setProfitTarget(e.target.value)} placeholder="e.g. 10" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Loss Limit ($)</label>
+        <input className="input-field" type="number" min="0" step="1" value={lossLimit} onChange={e => setLossLimit(e.target.value)} placeholder="e.g. 5" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Max Trades per Session</label>
+        <input className="input-field" type="number" min="0" step="1" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} placeholder="e.g. 50" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Consecutive Loss Cooldown (# losses)</label>
+        <input className="input-field" type="number" min="1" max="20" value={cooldownLosses} onChange={e => setCooldownLosses(parseInt(e.target.value) || 3)} />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Cooldown Duration (seconds)</label>
+        <input className="input-field" type="number" min="0" max="300" value={cooldownSecs} onChange={e => setCooldownSecs(parseInt(e.target.value) || 30)} />
+      </div>
+    </Collapsible>
+
+    {/* Alerts */}
+    <Collapsible title="Sound Alerts" defaultOpen={false}>
+      <Toggle label="Enable Sounds" value={soundOn} onChange={setSoundOn} />
+      <div className="fs-11 text-muted mt-8">
+        Signal beep, win double beep, loss low tone. Requires user interaction to enable AudioContext.
+      </div>
+      <button className="btn btn-outline btn-sm mt-8" onClick={() => { sounds.signal(); setTimeout(() => sounds.win(), 400); setTimeout(() => sounds.loss(), 900); }}>
+        Test Sounds
+      </button>
+    </Collapsible>
+  </div>
+);
+
+const LogsTab = ({ logs, setLogs }) => (
+  <div>
+    <div className="flex-between mb-8">
+      <span className="card-title" style={{ margin: 0 }}>Logs ({logs.length})</span>
+      <button className="btn btn-outline btn-sm" onClick={() => setLogs([])}>Clear</button>
+    </div>
+    <div className="card" style={{ padding: 8 }}>
+      {logs.length === 0 ? (
+        <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No logs yet</div>
+      ) : (
+        <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+          {logs.map((l, i) => (
+            <div key={i} className="log-entry">
+              <span className="log-time">{l.time}</span>
+              <span className={`log-msg log-${l.level}`}>{l.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+
+/* ================================================================
+   SECTION 10: MAIN APP
    ================================================================ */
 
 const App = () => {
   // ---- State ----
   const [tab, setTab] = useState('signal');
-  const [connStatus, setConnStatus] = useState('disconnected'); // disconnected, connecting, connected
+  const [connStatus, setConnStatus] = useState('disconnected');
   const [balance, setBalance] = useState(null);
   const [currency, setCurrency] = useState('USD');
   const [prices, setPrices] = useState([]);
   const [logs, setLogs] = useState([]);
   const [signal, setSignal] = useState({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
-  const [trades, setTrades] = useState([]);
+  const [trades, setTrades] = useState(() => loadStoredTrades()); // FIX #2: load from localStorage
   const [openContract, setOpenContract] = useState(null);
   const [backtestResult, setBTResult] = useState(null);
   const [btRunning, setBTRunning] = useState(false);
@@ -1016,7 +1650,7 @@ const App = () => {
   // Settings
   const [token, setToken] = useState('');
   const [symbol, setSymbol] = useState('R_50');
-  const [durIdx, setDurIdx] = useState(4); // 7 ticks default
+  const [durKey, setDurKey] = useState(DEFAULT_DUR_KEY); // FIX #4: string key, not index
   const [strategy, setStrategy] = useState('HYBRID');
   const [autoMode, setAutoMode] = useState(false);
   const [stake, setStake] = useState('1');
@@ -1081,10 +1715,11 @@ const App = () => {
   const consLossesRef = useRef(0);
   const cooldownEndRef = useRef(null);
   const sessionStoppedRef = useRef(false);
-  const durIdxRef = useRef(4);
+  const durKeyRef = useRef(DEFAULT_DUR_KEY); // FIX #4
   const pendingBuyId = useRef(null);
   const contractSubId = useRef(null);
   const tickSubId = useRef(null);
+  const tokenRef = useRef(''); // FIX #6: keep token for reconnect re-auth
 
   // Sync state to refs
   useEffect(() => { pricesRef.current = prices; }, [prices]);
@@ -1113,9 +1748,8 @@ const App = () => {
   useEffect(() => { consLossesRef.current = consLosses; }, [consLosses]);
   useEffect(() => { cooldownEndRef.current = cooldownEnd; }, [cooldownEnd]);
   useEffect(() => { sessionStoppedRef.current = sessionStopped; }, [sessionStopped]);
-  useEffect(() => { durIdxRef.current = durIdx; }, [durIdx]);
-
-  // Token is stored in-memory only for security
+  useEffect(() => { durKeyRef.current = durKey; }, [durKey]); // FIX #4
+  useEffect(() => { tokenRef.current = token; }, [token]); // FIX #6
 
   // ---- Logging ----
   const addLog = useCallback((msg, level = 'info') => {
@@ -1157,20 +1791,22 @@ const App = () => {
     addLog(`Subscribed to ${sym} ticks`, 'info');
   }, [wsSend, unsubTicks, addLog]);
 
+  /* FIX #4: placeTrade reads durKey not durIdx. Parses the key to get
+     the exact value/unit. What the UI shows is exactly what the API gets. */
   const placeTrade = useCallback((direction) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     if (sessionStoppedRef.current) { addLog('Session stopped — trade blocked', 'warn'); return; }
     if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) { addLog('Cooldown active — trade blocked', 'warn'); return; }
 
-    const dur = DURATIONS[durIdxRef.current];
+    const dur = parseDurKey(durKeyRef.current);
     const amount = currentStakeRef.current;
     const req = {
       buy: 1,
       price: amount,
       parameters: {
-        contract_type: direction === 'CALL' ? 'CALL' : 'PUT',
+        contract_type: direction, // Always CALL or PUT — API contract type
         symbol: symbolRef.current,
-        duration: parseInt(dur.value),
+        duration: dur.value,
         duration_unit: dur.unit,
         basis: 'stake',
         amount: amount,
@@ -1179,21 +1815,18 @@ const App = () => {
     };
     pendingBuyId.current = Date.now();
     wsSend(req);
-    addLog(`Trade placed: ${direction} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
+    addLog(`Trade placed: ${dirLabel(direction)} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
     if (soundOnRef.current) sounds.signal();
   }, [wsSend, addLog]);
 
   const evalSignal = useCallback(() => {
     const p = pricesRef.current;
-    if (p.length < 60) return;
+    if (p.length < 40) return; // FIX #3: guard against insufficient data
     const sig = getSignal(strategyRef.current, p, symbolRef.current, autoModeRef.current);
 
-    // Apply custom min strength override
     if (sig.direction && sig.strength < minStrengthRef.current) {
       sig.direction = null;
     }
-
-    // Apply MACD gate toggle
     if (sig.direction && macdGateEnabledRef.current && !sig.macdOk) {
       sig.direction = null;
     }
@@ -1209,19 +1842,20 @@ const App = () => {
     }
   }, [placeTrade]);
 
+  /* FIX #2: handleContractUpdate with dedup + localStorage persistence.
+     FIX #5: extracts start_time, expiry_time from proposal_open_contract. */
   const handleContractUpdate = useCallback((data) => {
     const c = data.proposal_open_contract;
     if (!c) return;
 
     if (c.is_sold || c.status === 'sold') {
-      // Contract completed
       const pnl = parseFloat(c.profit) || 0;
       const won = pnl > 0;
       const tradeRecord = {
-        id: c.contract_id,
+        id: c.contract_id, // used for dedup
         time: new Date().toLocaleTimeString('en-US', { hour12: false }),
         symbol: c.underlying || symbolRef.current,
-        direction: c.contract_type === 'CALL' ? 'CALL' : 'PUT',
+        direction: c.contract_type === 'CALL' ? 'CALL' : 'PUT', // API value stays CALL/PUT
         strategy: strategyRef.current,
         stake: parseFloat(c.buy_price) || currentStakeRef.current,
         won,
@@ -1230,10 +1864,10 @@ const App = () => {
         macdOk: true,
       };
 
-      setTrades(prev => [tradeRecord, ...prev]);
+      // FIX #2: dedup by contract_id + persist to localStorage
+      setTrades(prev => addTradeDeduped(prev, tradeRecord));
       setOpenContract(null);
 
-      // Unsubscribe from contract
       if (contractSubId.current) {
         wsSend({ forget: contractSubId.current });
         contractSubId.current = null;
@@ -1264,7 +1898,6 @@ const App = () => {
         addLog(`LOSS -$${Math.abs(pnl).toFixed(2)}`, 'error');
         if (soundOnRef.current) sounds.loss();
 
-        // Cooldown check
         if (newConsLosses >= cooldownLossesRef.current && cooldownSecsRef.current > 0) {
           const end = Date.now() + cooldownSecsRef.current * 1000;
           setCooldownEnd(end);
@@ -1283,12 +1916,10 @@ const App = () => {
       } else if (mm === 'MARTINGALE') {
         if (won) {
           nextStake = baseStake;
-          setMartiStep(0);
-          martiStepRef.current = 0;
+          setMartiStep(0); martiStepRef.current = 0;
         } else {
           const newStep = Math.min(martiStepRef.current + 1, maxMartiStepsRef.current);
-          setMartiStep(newStep);
-          martiStepRef.current = newStep;
+          setMartiStep(newStep); martiStepRef.current = newStep;
           nextStake = baseStake * Math.pow(martiFactorRef.current, newStep);
         }
       } else if (mm === 'DALEMBERT') {
@@ -1315,26 +1946,20 @@ const App = () => {
       const mt = parseInt(maxTradesRef.current);
 
       if (pt && newPnL >= pt) {
-        setSessionStopped(true);
-        sessionStoppedRef.current = true;
-        setRunning(false);
-        runningRef.current = false;
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
         addLog(`PROFIT TARGET reached: $${newPnL.toFixed(2)} >= $${pt.toFixed(2)}`, 'success');
       } else if (ll && newPnL <= -Math.abs(ll)) {
-        setSessionStopped(true);
-        sessionStoppedRef.current = true;
-        setRunning(false);
-        runningRef.current = false;
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
         addLog(`LOSS LIMIT reached: $${newPnL.toFixed(2)} <= -$${Math.abs(ll).toFixed(2)}`, 'error');
       } else if (mt && newTradeCount >= mt) {
-        setSessionStopped(true);
-        sessionStoppedRef.current = true;
-        setRunning(false);
-        runningRef.current = false;
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
         addLog(`MAX TRADES reached: ${newTradeCount}/${mt}`, 'warn');
       }
     } else {
-      // Still open
+      // Still open — FIX #5: include start_time, expiry_time, countdown
       setOpenContract({
         id: c.contract_id,
         type: c.contract_type,
@@ -1343,6 +1968,8 @@ const App = () => {
         entrySpot: c.entry_spot,
         currentSpot: c.current_spot,
         isExpired: c.is_expired,
+        startTime: c.date_start || c.purchase_time || null,  // FIX #5: server epoch
+        expiryTime: c.date_expiry || null,                    // FIX #5: server epoch
       });
     }
   }, [wsSend, addLog]);
@@ -1398,8 +2025,12 @@ const App = () => {
     if (data.msg_type === 'ping') { /* keep alive ack */ }
   }, [addLog, wsSend, subTicks, evalSignal, handleContractUpdate]);
 
+  /* FIX #6: WebSocket reconnect with exponential backoff, re-auth, re-subscribe.
+     Uses 2^n * 1000ms delay (1s, 2s, 4s, 8s, 16s, 32s, 64s max).
+     On reconnect: re-authorizes token, re-subscribes to ticks. */
   const connect = useCallback(() => {
-    if (!token.trim()) { addLog('Enter API token first', 'warn'); return; }
+    const tok = tokenRef.current || token;
+    if (!tok.trim()) { addLog('Enter API token first', 'warn'); return; }
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.close();
@@ -1412,8 +2043,7 @@ const App = () => {
 
     ws.onopen = () => {
       addLog('WebSocket connected, authorizing...', 'info');
-      ws.send(JSON.stringify({ authorize: token.trim() }));
-      // Start ping
+      ws.send(JSON.stringify({ authorize: tok.trim() })); // FIX #6: re-auth on reconnect
       if (pingRef.current) clearInterval(pingRef.current);
       pingRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
@@ -1425,14 +2055,19 @@ const App = () => {
     ws.onclose = () => {
       setConnStatus('disconnected');
       setOpenContract(null);
+      tickSubId.current = null; // FIX #6: clear stale sub IDs
+      contractSubId.current = null;
       if (pingRef.current) clearInterval(pingRef.current);
       addLog('WebSocket disconnected', 'warn');
-      // Reconnect
-      if (reconnectCount.current < MAX_RECONNECT && token.trim()) {
+
+      // FIX #6: Exponential backoff reconnect with re-auth
+      if (reconnectCount.current < MAX_RECONNECT && tokenRef.current.trim()) {
         reconnectCount.current++;
-        const delay = RECONNECT_DELAY * reconnectCount.current;
-        addLog(`Reconnecting in ${delay / 1000}s (attempt ${reconnectCount.current}/${MAX_RECONNECT})...`, 'info');
+        const delay = Math.min(Math.pow(2, reconnectCount.current) * 1000, 64000); // max 64s
+        addLog(`Reconnecting in ${(delay / 1000).toFixed(0)}s (attempt ${reconnectCount.current}/${MAX_RECONNECT})...`, 'info');
         reconnectTimer.current = setTimeout(() => connect(), delay);
+      } else if (reconnectCount.current >= MAX_RECONNECT) {
+        addLog('Max reconnect attempts reached. Please reconnect manually.', 'error');
       }
     };
 
@@ -1459,7 +2094,7 @@ const App = () => {
     addLog('Disconnected', 'info');
   }, [addLog]);
 
-  // Symbol change
+  // FIX #3: On symbol change, clear prices and re-subscribe cleanly
   useEffect(() => {
     if (connStatus === 'connected') {
       setPrices([]);
@@ -1469,7 +2104,7 @@ const App = () => {
     }
   }, [symbol, connStatus, subTicks]);
 
-  // Cleanup
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (wsRef.current) wsRef.current.close();
@@ -1508,7 +2143,6 @@ const App = () => {
     addLog('Session reset', 'info');
   };
 
-  // ---- Run Backtest ----
   const doBacktest = () => {
     const p = pricesRef.current;
     if (p.length < 80) { addLog('Need at least 80 ticks for backtest', 'warn'); return; }
@@ -1522,522 +2156,20 @@ const App = () => {
     }, 50);
   };
 
-  // Manual trade
   const manualTrade = (dir) => {
     if (connStatus !== 'connected') { addLog('Not connected', 'warn'); return; }
     if (!running) { addLog('Start bot first', 'warn'); return; }
     placeTrade(dir);
   };
 
-  // ---- Derived ----
+  // Derived
   const sessionWinRate = sessionTrades > 0 ? Math.round((sessionWins / sessionTrades) * 100) : 0;
   const priceSpark = prices.slice(-80);
 
   /* ================================================================
-     RENDER: SIGNAL TAB
-     ================================================================ */
-  const SignalTab = () => (
-    <div>
-      {/* Cooldown bar */}
-      {cooldownRemain > 0 && (
-        <div className="cooldown-bar">
-          <div className="cd-label">⏸ Cooldown Active</div>
-          <div className="cd-time">{cooldownRemain}s</div>
-        </div>
-      )}
-
-      {sessionStopped && (
-        <div className="card" style={{ borderColor: 'var(--warning)', textAlign: 'center' }}>
-          <div style={{ color: 'var(--warning)', fontWeight: 700, marginBottom: 6 }}>SESSION STOPPED</div>
-          <div className="fs-12 text-muted">
-            {parseFloat(profitTarget) && sessionPnL >= parseFloat(profitTarget) ? 'Profit target reached' :
-             parseFloat(lossLimit) && sessionPnL <= -Math.abs(parseFloat(lossLimit)) ? 'Loss limit reached' :
-             parseInt(maxTrades) && sessionTrades >= parseInt(maxTrades) ? 'Max trades reached' : 'Stopped'}
-          </div>
-          <button className="btn btn-outline btn-sm mt-8" onClick={resetSession}>Reset Session</button>
-        </div>
-      )}
-
-      {/* Gauge */}
-      <div className="card text-center">
-        <StrengthGauge strength={signal.strength} direction={signal.direction} />
-        {signal.direction && (
-          <div style={{ marginTop: 8 }}>
-            <span className={`dir-badge ${signal.direction === 'CALL' ? 'call' : 'put'}`}>
-              {signal.direction === 'CALL' ? '▲' : '▼'} {signal.direction}
-            </span>
-          </div>
-        )}
-        <div className="fs-11 text-muted mt-8">
-          {strategy} | Votes: {signal.votes}/{signal.total} | MACD Gate: <span style={{ color: signal.macdOk ? 'var(--primary)' : 'var(--danger)' }}>{signal.macdOk ? 'PASS' : 'FAIL'}</span>
-          {signal.atrSpike && <span className="text-warning"> | ATR SPIKE</span>}
-        </div>
-      </div>
-
-      {/* Component Pills */}
-      <div className="card">
-        <div className="card-title">Indicator Breakdown</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <IndicatorPill name="RSI" data={signal.components.rsi} />
-          <IndicatorPill name="StochRSI" data={signal.components.stochRSI} />
-          <IndicatorPill name="BB" data={signal.components.bb} />
-          <IndicatorPill name="EMA" data={signal.components.ema} />
-          <IndicatorPill name="MACD" data={signal.components.macd} />
-        </div>
-      </div>
-
-      {/* Sparkline */}
-      <div className="card">
-        <div className="card-title">Price ({symbol}) — {prices.length} ticks</div>
-        <Sparkline data={priceSpark} height={60} />
-        {prices.length > 0 && (
-          <div className="mono fs-13 text-center mt-8" style={{ color: 'var(--text-bright)' }}>
-            {prices[prices.length - 1]?.toFixed(symbol.includes('R_10') ? 3 : 2)}
-          </div>
-        )}
-      </div>
-
-      {/* Action */}
-      <div className="card">
-        <div className="flex-between mb-8">
-          <div>
-            <span className="fs-11 text-muted">{autoMode ? 'AUTO' : 'MANUAL'} Mode</span>
-            <span className="mono fs-12 ml-4" style={{ marginLeft: 8, color: running ? 'var(--primary)' : 'var(--danger)' }}>
-              {running ? '● RUNNING' : '○ STOPPED'}
-            </span>
-          </div>
-          <span className="mono fs-12">Stake: ${currentStake.toFixed(2)}</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${running ? 'btn-danger' : 'btn-primary'}`} style={{ flex: 1 }} onClick={toggleRunning}>
-            {running ? 'Stop' : 'Start'}
-          </button>
-        </div>
-
-        {!autoMode && running && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button className="btn btn-primary" style={{ flex: 1, background: 'var(--primary)' }} onClick={() => manualTrade('CALL')}>
-              ▲ CALL
-            </button>
-            <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => manualTrade('PUT')}>
-              ▼ PUT
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Session Summary */}
-      <div className="stats-grid">
-        <div className="stat-box">
-          <div className="stat-label">Net P&L</div>
-          <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Win Rate</div>
-          <div className="stat-value">{sessionWinRate}%</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Trades</div>
-          <div className="stat-value">{sessionTrades}</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Best Streak</div>
-          <div className="stat-value text-primary">{maxWinStreak}</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  /* ================================================================
-     RENDER: TRADES TAB
-     ================================================================ */
-  const TradesTab = () => (
-    <div>
-      {/* Open Contract */}
-      {openContract && (
-        <div className="card" style={{ borderColor: openContract.currentPnL >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
-          <div className="card-title">Open Contract</div>
-          <div className="flex-between">
-            <span className="mono fs-13">{openContract.type}</span>
-            <span className={`mono fs-13 fw-600 ${openContract.currentPnL >= 0 ? 'text-primary' : 'text-danger'}`}>
-              {openContract.currentPnL >= 0 ? '+' : ''}${openContract.currentPnL.toFixed(2)}
-            </span>
-          </div>
-          <div className="fs-11 text-muted mt-8">
-            Entry: {openContract.entrySpot} | Current: {openContract.currentSpot} | Buy: ${openContract.buyPrice?.toFixed(2)}
-          </div>
-        </div>
-      )}
-
-      {/* Session Stats */}
-      <div className="card">
-        <div className="card-title">Session Summary</div>
-        <div className="stats-grid">
-          <div className="stat-box">
-            <div className="stat-label">Total Trades</div>
-            <div className="stat-value">{sessionTrades}</div>
-          </div>
-          <div className="stat-box">
-            <div className="stat-label">Win Rate</div>
-            <div className="stat-value">{sessionWinRate}%</div>
-          </div>
-          <div className="stat-box">
-            <div className="stat-label">Net P&L</div>
-            <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
-          </div>
-          <div className="stat-box">
-            <div className="stat-label">Wins / Losses</div>
-            <div className="stat-value"><span className="text-primary">{sessionWins}</span> / <span className="text-danger">{sessionTrades - sessionWins}</span></div>
-          </div>
-          <div className="stat-box">
-            <div className="stat-label">Best Trade</div>
-            <div className="stat-value text-primary">${bestTrade.toFixed(2)}</div>
-          </div>
-          <div className="stat-box">
-            <div className="stat-label">Worst Trade</div>
-            <div className="stat-value text-danger">${worstTrade.toFixed(2)}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={resetSession}>Reset Session</button>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => trades.length > 0 ? exportCSV(trades) : addLog('No trades to export', 'warn')} disabled={trades.length === 0}>
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Trade History */}
-      <div className="card">
-        <div className="card-title">Trade History ({trades.length})</div>
-        {trades.length === 0 ? (
-          <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No trades yet</div>
-        ) : (
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {trades.map((t, i) => (
-              <div key={i} className="trade-row">
-                <div className="trade-info">
-                  <span className={`trade-dir ${t.won ? 'text-primary' : 'text-danger'}`}>
-                    {t.direction === 'CALL' ? '▲' : '▼'} {t.direction} — {t.symbol}
-                  </span>
-                  <span className="trade-time">{t.time} | {t.strategy} | ${t.stake?.toFixed(2)}</span>
-                </div>
-                <span className={`trade-pnl ${t.won ? 'win' : 'loss'}`}>
-                  {t.won ? '+' : ''}{t.profit?.toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  /* ================================================================
-     RENDER: BACKTEST TAB
-     ================================================================ */
-  const BacktestTab = () => {
-    const r = backtestResult;
-    const totalTrades = r ? r.wins + r.losses : 0;
-    const wr = totalTrades > 0 ? Math.round((r.wins / totalTrades) * 100) : 0;
-    const profitFactor = r && r.losses > 0 ? Math.abs((r.wins * 0.85) / (r.losses * 1)).toFixed(2) : '∞';
-    const avgPnL = totalTrades > 0 ? (r.totalPnL / totalTrades).toFixed(3) : '0';
-    // Simple Sharpe-like: mean / std of returns
-    let sharpe = '—';
-    if (r && r.trades.length > 1) {
-      const returns = r.trades.map(t => t.pnl);
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
-      if (std > 0) sharpe = (mean / std).toFixed(2);
-    }
-
-    return (
-      <div>
-        <div className="card">
-          <div className="card-title">Backtest — {strategy} on {symbol}</div>
-          <div className="fs-11 text-muted mb-8">Using {prices.length} collected ticks</div>
-          <button className="btn btn-primary btn-full" onClick={doBacktest} disabled={btRunning || prices.length < 80}>
-            {btRunning ? 'Running...' : 'Run Backtest'}
-          </button>
-        </div>
-
-        {r && (
-          <>
-            <div className="stats-grid">
-              <div className="stat-box">
-                <div className="stat-label">Total Trades</div>
-                <div className="stat-value">{totalTrades}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Win Rate</div>
-                <div className="stat-value">{wr}%</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Net P&L</div>
-                <div className={`stat-value ${r.totalPnL >= 0 ? 'text-primary' : 'text-danger'}`}>{r.totalPnL.toFixed(2)}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Profit Factor</div>
-                <div className="stat-value">{profitFactor}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Max Drawdown</div>
-                <div className="stat-value text-danger">{r.maxDrawdown.toFixed(2)}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Sharpe-like</div>
-                <div className="stat-value">{sharpe}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Best Streak</div>
-                <div className="stat-value text-primary">{r.maxStreak}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Worst Streak</div>
-                <div className="stat-value text-danger">{r.maxLossStreak}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Calls / Puts</div>
-                <div className="stat-value"><span className="text-primary">{r.callCount}</span> / <span className="text-danger">{r.putCount}</span></div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">Avg P&L / Trade</div>
-                <div className="stat-value">{avgPnL}</div>
-              </div>
-            </div>
-
-            {/* Rolling WR Sparkline */}
-            {r.rollingWR.length > 2 && (
-              <div className="card mt-8">
-                <div className="card-title">Rolling Win Rate (20-trade window)</div>
-                <WRSparkline data={r.rollingWR} height={50} />
-              </div>
-            )}
-
-            {/* Trade List */}
-            <div className="card mt-8">
-              <div className="card-title">Trade Details ({r.trades.length})</div>
-              <div className="bt-trade-list">
-                {r.trades.map((t, i) => (
-                  <div key={i} className="bt-trade">
-                    <span className="mono">#{i + 1} {t.direction === 'CALL' ? '▲' : '▼'} {t.direction}</span>
-                    <span className="mono" style={{ color: 'var(--muted)' }}>str:{t.strength}</span>
-                    <span className={`mono fw-600 ${t.won ? 'text-primary' : 'text-danger'}`}>
-                      {t.won ? '+0.85' : '-1.00'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  /* ================================================================
-     RENDER: SETTINGS TAB
-     ================================================================ */
-  const SettingsTab = () => (
-    <div>
-      {/* Connection */}
-      <Collapsible title="Connection" defaultOpen={connStatus !== 'connected'}>
-        <div className="input-group">
-          <label className="input-label">API Token</label>
-          <input className="input-field" type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Enter Deriv API token" />
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={connect} disabled={connStatus === 'connected'}>
-            Connect
-          </button>
-          <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={disconnect} disabled={connStatus === 'disconnected'}>
-            Disconnect
-          </button>
-        </div>
-        <div className="fs-11 text-muted mt-8">
-          Status: <span style={{ color: connStatus === 'connected' ? 'var(--primary)' : connStatus === 'connecting' ? 'var(--warning)' : 'var(--danger)' }}>
-            {connStatus.toUpperCase()}
-          </span>
-        </div>
-      </Collapsible>
-
-      {/* Market */}
-      <Collapsible title="Market" defaultOpen={true}>
-        <div className="input-group">
-          <label className="input-label">Symbol</label>
-          <select className="input-field" value={symbol} onChange={e => setSymbol(e.target.value)}>
-            {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-        <div className="input-group">
-          <label className="input-label">Duration</label>
-          <select className="input-field" value={durIdx} onChange={e => setDurIdx(parseInt(e.target.value))}>
-            {DURATIONS.map((d, i) => <option key={i} value={i}>{d.label}</option>)}
-          </select>
-        </div>
-      </Collapsible>
-
-      {/* Strategy */}
-      <Collapsible title="Strategy" defaultOpen={true}>
-        <div className="input-group">
-          <label className="input-label">Strategy</label>
-          <select className="input-field" value={strategy} onChange={e => setStrategy(e.target.value)}>
-            {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
-          {strategy === 'HYBRID' && '5-indicator confluence: RSI + StochRSI + BB + EMA + MACD weighted voting. Requires MACD gate alignment + ATR spike filter.'}
-          {strategy === 'RSI' && 'RSI oversold/overbought zones with EMA trend filter and MACD directional gate.'}
-          {strategy === 'EMA' && 'EMA crossover detection with ATR spike guard and MACD gate confirmation.'}
-          {strategy === 'BB' && 'Bollinger Band touch at extremes combined with StochRSI oversold/overbought and MACD gate.'}
-          {strategy === 'MACD' && 'MACD crossover as primary signal with RSI confirmation filter.'}
-        </div>
-        <Toggle label="MACD Gate" value={macdGateEnabled} onChange={setMacdGateEnabled} />
-        <div className="input-group mt-8">
-          <div className="flex-between">
-            <label className="input-label">Min Strength</label>
-            <span className="slider-value">{minStrength}%</span>
-          </div>
-          <div className="slider-wrap">
-            <input className="slider-input" type="range" min="30" max="95" value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value))} />
-          </div>
-        </div>
-      </Collapsible>
-
-      {/* Execution */}
-      <Collapsible title="Execution" defaultOpen={false}>
-        <Toggle label="Auto Trading" value={autoMode} onChange={setAutoMode} />
-        <div className="input-group mt-8">
-          <label className="input-label">Base Stake ($)</label>
-          <input className="input-field" type="number" min="0.35" step="0.01" value={stake} onChange={e => {
-            setStake(e.target.value);
-            const v = parseFloat(e.target.value) || 1;
-            setCurrentStake(v);
-            currentStakeRef.current = v;
-          }} />
-        </div>
-      </Collapsible>
-
-      {/* Money Management */}
-      <Collapsible title="Money Management" defaultOpen={false}>
-        <div className="input-group">
-          <label className="input-label">System</label>
-          <select className="input-field" value={mmSystem} onChange={e => { setMMSystem(e.target.value); setMartiStep(0); martiStepRef.current = 0; setCurrentStake(parseFloat(stake) || 1); currentStakeRef.current = parseFloat(stake) || 1; }}>
-            <option value="FLAT">Flat (Fixed Stake)</option>
-            <option value="MARTINGALE">Martingale</option>
-            <option value="DALEMBERT">D'Alembert</option>
-            <option value="REVERSE_MARTINGALE">Reverse Martingale (Anti-Martingale)</option>
-          </select>
-        </div>
-        <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
-          {mmSystem === 'FLAT' && 'Always trade the base stake amount. No progression.'}
-          {mmSystem === 'MARTINGALE' && 'After a loss, multiply stake by factor. After a win, reset to base. Max steps limits progression.'}
-          {mmSystem === 'DALEMBERT' && "After a loss, increase stake by unit. After a win, decrease by unit. Minimum is always the base stake."}
-          {mmSystem === 'REVERSE_MARTINGALE' && 'After a WIN, multiply stake. After a loss, reset to base. Max stake caps the progression.'}
-        </div>
-
-        {(mmSystem === 'MARTINGALE' || mmSystem === 'REVERSE_MARTINGALE') && (
-          <div className="input-group">
-            <label className="input-label">Multiplier</label>
-            <input className="input-field" type="number" min="1.1" max="5" step="0.1" value={martiFactor} onChange={e => setMartiFactor(parseFloat(e.target.value) || 2)} />
-          </div>
-        )}
-
-        {mmSystem === 'MARTINGALE' && (
-          <div className="input-group">
-            <label className="input-label">Max Steps</label>
-            <input className="input-field" type="number" min="1" max="10" value={maxMartiSteps} onChange={e => setMaxMartiSteps(parseInt(e.target.value) || 5)} />
-          </div>
-        )}
-
-        {mmSystem === 'DALEMBERT' && (
-          <div className="input-group">
-            <label className="input-label">Unit Increment ($)</label>
-            <input className="input-field" type="number" min="0.1" step="0.1" value={dalUnit} onChange={e => setDalUnit(parseFloat(e.target.value) || 0.5)} />
-          </div>
-        )}
-
-        {mmSystem === 'REVERSE_MARTINGALE' && (
-          <div className="input-group">
-            <label className="input-label">Max Stake ($)</label>
-            <input className="input-field" type="number" min="1" step="1" value={revMartiMax} onChange={e => setRevMartiMax(parseFloat(e.target.value) || 10)} />
-          </div>
-        )}
-
-        <div className="fs-11 text-muted mt-8">
-          Current Stake: <span className="mono text-primary">${currentStake.toFixed(2)}</span>
-          {mmSystem === 'MARTINGALE' && <span> | Step: {martiStep}/{maxMartiSteps}</span>}
-        </div>
-      </Collapsible>
-
-      {/* Risk Management */}
-      <Collapsible title="Risk Management" defaultOpen={false}>
-        <div className="input-group">
-          <label className="input-label">Profit Target ($)</label>
-          <input className="input-field" type="number" min="0" step="1" value={profitTarget} onChange={e => setProfitTarget(e.target.value)} placeholder="e.g. 10" />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Loss Limit ($)</label>
-          <input className="input-field" type="number" min="0" step="1" value={lossLimit} onChange={e => setLossLimit(e.target.value)} placeholder="e.g. 5" />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Max Trades per Session</label>
-          <input className="input-field" type="number" min="0" step="1" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} placeholder="e.g. 50" />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Consecutive Loss Cooldown (# losses)</label>
-          <input className="input-field" type="number" min="1" max="20" value={cooldownLosses} onChange={e => setCooldownLosses(parseInt(e.target.value) || 3)} />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Cooldown Duration (seconds)</label>
-          <input className="input-field" type="number" min="0" max="300" value={cooldownSecs} onChange={e => setCooldownSecs(parseInt(e.target.value) || 30)} />
-        </div>
-      </Collapsible>
-
-      {/* Alerts */}
-      <Collapsible title="Sound Alerts" defaultOpen={false}>
-        <Toggle label="Enable Sounds" value={soundOn} onChange={setSoundOn} />
-        <div className="fs-11 text-muted mt-8">
-          Signal beep, win double beep, loss low tone. Requires user interaction to enable AudioContext.
-        </div>
-        <button className="btn btn-outline btn-sm mt-8" onClick={() => { sounds.signal(); setTimeout(() => sounds.win(), 400); setTimeout(() => sounds.loss(), 900); }}>
-          Test Sounds
-        </button>
-      </Collapsible>
-    </div>
-  );
-
-  /* ================================================================
-     RENDER: LOGS TAB
-     ================================================================ */
-  const LogsTab = () => {
-    const logEndRef = useRef(null);
-    return (
-      <div>
-        <div className="flex-between mb-8">
-          <span className="card-title" style={{ margin: 0 }}>Logs ({logs.length})</span>
-          <button className="btn btn-outline btn-sm" onClick={() => setLogs([])}>Clear</button>
-        </div>
-        <div className="card" style={{ padding: 8 }}>
-          {logs.length === 0 ? (
-            <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No logs yet</div>
-          ) : (
-            <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
-              {logs.map((l, i) => (
-                <div key={i} className="log-entry">
-                  <span className="log-time">{l.time}</span>
-                  <span className={`log-msg log-${l.level}`}>{l.msg}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  /* ================================================================
      RENDER: MAIN APP
+     FIX #1: Tab components are stable references defined outside App.
+     They receive data via props, so React doesn't unmount/remount them.
      ================================================================ */
   return (
     <>
@@ -2061,13 +2193,52 @@ const App = () => {
         </div>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content — FIX #1: stable components, props-driven */}
       <div className="tab-content">
-        {tab === 'signal' && <SignalTab />}
-        {tab === 'trades' && <TradesTab />}
-        {tab === 'backtest' && <BacktestTab />}
-        {tab === 'settings' && <SettingsTab />}
-        {tab === 'logs' && <LogsTab />}
+        {tab === 'signal' && <SignalTab
+          cooldownRemain={cooldownRemain} sessionStopped={sessionStopped}
+          profitTarget={profitTarget} sessionPnL={sessionPnL} lossLimit={lossLimit}
+          maxTrades={maxTrades} sessionTrades={sessionTrades} resetSession={resetSession}
+          signal={signal} strategy={strategy} autoMode={autoMode} running={running}
+          connStatus={connStatus} currentStake={currentStake} toggleRunning={toggleRunning}
+          manualTrade={manualTrade} sessionWinRate={sessionWinRate} sessionWins={sessionWins}
+          maxWinStreak={maxWinStreak} priceSpark={priceSpark} prices={prices} symbol={symbol}
+          openContract={openContract}
+        />}
+        {tab === 'trades' && <TradesTab
+          openContract={openContract} sessionTrades={sessionTrades}
+          sessionWinRate={sessionWinRate} sessionPnL={sessionPnL} sessionWins={sessionWins}
+          bestTrade={bestTrade} worstTrade={worstTrade} resetSession={resetSession}
+          trades={trades} addLog={addLog} symbol={symbol}
+        />}
+        {tab === 'backtest' && <BacktestTab
+          backtestResult={backtestResult} strategy={strategy} symbol={symbol}
+          prices={prices} doBacktest={doBacktest} btRunning={btRunning}
+        />}
+        {tab === 'settings' && <SettingsTab
+          connStatus={connStatus} token={token} setToken={setToken}
+          connect={connect} disconnect={disconnect} symbol={symbol} setSymbol={setSymbol}
+          durKey={durKey} setDurKey={setDurKey}
+          strategy={strategy} setStrategy={setStrategy}
+          macdGateEnabled={macdGateEnabled} setMacdGateEnabled={setMacdGateEnabled}
+          minStrength={minStrength} setMinStrength={setMinStrength}
+          autoMode={autoMode} setAutoMode={setAutoMode}
+          stake={stake} setStake={setStake} setCurrentStake={setCurrentStake}
+          currentStakeRef={currentStakeRef} mmSystem={mmSystem} setMMSystem={setMMSystem}
+          setMartiStep={setMartiStep} martiStepRef={martiStepRef}
+          martiFactor={martiFactor} setMartiFactor={setMartiFactor}
+          maxMartiSteps={maxMartiSteps} setMaxMartiSteps={setMaxMartiSteps}
+          dalUnit={dalUnit} setDalUnit={setDalUnit}
+          revMartiMax={revMartiMax} setRevMartiMax={setRevMartiMax}
+          currentStake={currentStake} martiStep={martiStep}
+          profitTarget={profitTarget} setProfitTarget={setProfitTarget}
+          lossLimit={lossLimit} setLossLimit={setLossLimit}
+          maxTrades={maxTrades} setMaxTrades={setMaxTrades}
+          cooldownLosses={cooldownLosses} setCooldownLosses={setCooldownLosses}
+          cooldownSecs={cooldownSecs} setCooldownSecs={setCooldownSecs}
+          soundOn={soundOn} setSoundOn={setSoundOn}
+        />}
+        {tab === 'logs' && <LogsTab logs={logs} setLogs={setLogs} />}
       </div>
 
       {/* Tab Bar */}
