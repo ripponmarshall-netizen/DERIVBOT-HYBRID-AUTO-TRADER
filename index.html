@@ -331,7 +331,17 @@ const parseDurKey = (key) => {
 };
 const DEFAULT_DUR_KEY = makeDurKey(DURATIONS[4]); // 7 ticks
 
-const STRATEGIES = ['HYBRID', 'RSI', 'EMA', 'BB', 'MACD'];
+const STRATEGIES = ['HYBRID', 'EMA_STOCH', 'SMA_RSI', 'BB_SQUEEZE', 'RSI', 'EMA', 'BB', 'MACD'];
+const STRATEGY_LABELS = {
+  HYBRID: 'Hybrid (5-Indicator)',
+  EMA_STOCH: 'EMA-Stoch Scalper',
+  SMA_RSI: 'SMA-RSI Pullback',
+  BB_SQUEEZE: 'BB Squeeze Breakout',
+  RSI: 'RSI',
+  EMA: 'EMA Crossover',
+  BB: 'Bollinger Bands',
+  MACD: 'MACD',
+};
 const MM_SYSTEMS = ['FLAT', 'MARTINGALE', 'DALEMBERT', 'REVERSE_MARTINGALE'];
 
 /* FIX #8: UI label helper — maps API direction to user-facing label.
@@ -367,6 +377,28 @@ const GENERIC_CONFIG = {
     macdFast: 12, macdSlow: 26, macdSignal: 9,
     rsiPeriod: 14, rsiOB: 65, rsiOS: 35,
   },
+  /* --- V50 Research Strategies --- */
+  EMA_STOCH: {
+    ema8Period: 8, ema21Period: 21,
+    stochK: 5, stochD: 3, stochSlowing: 3,
+    slopeThreshold: 0.5,
+    atrPeriod: 14,
+  },
+  SMA_RSI: {
+    sma20Period: 20, sma50Period: 50,
+    rsiPeriod: 14,
+    pullbackThreshold: 2,
+    minSmaSep: 0.5,
+    atrPeriod: 14,
+  },
+  BB_SQUEEZE: {
+    bbPeriod: 20, bbMult: 2.0,
+    kcPeriod: 20, kcAtrMulti: 1.5, kcAtrPeriod: 14,
+    minSqueezeBars: 3,
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+    rsiPeriod: 14,
+    atrPeriod: 14,
+  },
 };
 
 const R50_CONFIG = {
@@ -377,6 +409,20 @@ const R50_CONFIG = {
     emaFast: 8, emaSlow: 18, emaTrend: 45,
     weights: { rsi: 1.2, stochRSI: 1, bb: 1.1, ema: 0.9, macd: 1.3 },
     autoMinVotes: 3, autoMinStrength: 75,
+  },
+  /* V50-tuned research strategies */
+  EMA_STOCH: {
+    ...GENERIC_CONFIG.EMA_STOCH,
+    slopeThreshold: 0.3, // V50 smoother, lower threshold
+  },
+  SMA_RSI: {
+    ...GENERIC_CONFIG.SMA_RSI,
+    pullbackThreshold: 1.5, // V50 tighter pullbacks
+    minSmaSep: 0.3,
+  },
+  BB_SQUEEZE: {
+    ...GENERIC_CONFIG.BB_SQUEEZE,
+    minSqueezeBars: 3, // V50 has consistent squeeze behavior
   },
 };
 
@@ -562,6 +608,119 @@ const calcATRAvg = (prices, period = 14, avgLen = 50) => {
 
 const macdGate = (prices, cfg) => {
   return calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
+};
+
+/* ---- SMA (Simple Moving Average) ---- */
+const calcSMA = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return null;
+  let sum = 0;
+  for (let i = prices.length - period; i < prices.length; i++) sum += prices[i];
+  return sum / period;
+};
+
+const calcSMASeries = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return [];
+  const series = [];
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += prices[i];
+  series.push(sum / period);
+  for (let i = period; i < prices.length; i++) {
+    sum += prices[i] - prices[i - period];
+    series.push(sum / period);
+  }
+  return series;
+};
+
+/* ---- Classic Stochastic Oscillator (K, D) ---- */
+const calcStochastic = (prices, kPeriod = 5, dPeriod = 3, slowing = 3) => {
+  const nullResult = { k: null, d: null, kPrev: null, dPrev: null, kSeries: [] };
+  if (!prices || prices.length < kPeriod + slowing + dPeriod) return nullResult;
+  // Step 1: Raw %K values (fast K)
+  const rawK = [];
+  for (let i = kPeriod - 1; i < prices.length; i++) {
+    let high = -Infinity, low = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) {
+      if (prices[j] > high) high = prices[j];
+      if (prices[j] < low) low = prices[j];
+    }
+    const range = high - low;
+    rawK.push(range === 0 ? 50 : ((prices[i] - low) / range) * 100);
+  }
+  // Step 2: Slow %K (SMA of rawK with 'slowing' period)
+  if (rawK.length < slowing) return nullResult;
+  const slowK = [];
+  for (let i = slowing - 1; i < rawK.length; i++) {
+    let s = 0;
+    for (let j = 0; j < slowing; j++) s += rawK[i - j];
+    slowK.push(s / slowing);
+  }
+  // Step 3: %D (SMA of slowK with dPeriod)
+  if (slowK.length < dPeriod) return { ...nullResult, k: slowK[slowK.length - 1], kSeries: slowK };
+  const dLine = [];
+  for (let i = dPeriod - 1; i < slowK.length; i++) {
+    let s = 0;
+    for (let j = 0; j < dPeriod; j++) s += slowK[i - j];
+    dLine.push(s / dPeriod);
+  }
+  return {
+    k: slowK[slowK.length - 1],
+    d: dLine[dLine.length - 1],
+    kPrev: slowK.length >= 2 ? slowK[slowK.length - 2] : null,
+    dPrev: dLine.length >= 2 ? dLine[dLine.length - 2] : null,
+    kSeries: slowK,
+  };
+};
+
+/* ---- Keltner Channels ---- */
+const calcKeltnerChannels = (prices, period = 20, atrMulti = 1.5, atrPeriod = 14) => {
+  const nullResult = { upper: null, middle: null, lower: null };
+  if (!prices || prices.length < Math.max(period, atrPeriod + 1)) return nullResult;
+  const middle = calcEMA(prices, period);
+  const atr = calcATR(prices, atrPeriod);
+  if (middle === null || atr === null) return nullResult;
+  return { upper: middle + atrMulti * atr, middle, lower: middle - atrMulti * atr };
+};
+
+/* ---- Bollinger Bands Series (for squeeze detection over N bars) ---- */
+const calcBBAtIndex = (prices, endIdx, period = 20, mult = 2.0) => {
+  if (endIdx < period - 1) return null;
+  let sum = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) sum += prices[i];
+  const mean = sum / period;
+  let variance = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) variance += (prices[i] - mean) ** 2;
+  const std = Math.sqrt(variance / period);
+  return { upper: mean + mult * std, middle: mean, lower: mean - mult * std };
+};
+
+const calcKCAtIndex = (prices, endIdx, period = 20, atrMulti = 1.5, atrPeriod = 14) => {
+  if (endIdx < Math.max(period, atrPeriod)) return null;
+  // EMA up to endIdx
+  const slice = prices.slice(0, endIdx + 1);
+  const middle = calcEMA(slice, period);
+  if (middle === null) return null;
+  let atrSum = 0;
+  for (let i = endIdx - atrPeriod + 1; i <= endIdx; i++) {
+    atrSum += Math.abs(prices[i] - prices[i - 1]);
+  }
+  const atr = atrSum / atrPeriod;
+  return { upper: middle + atrMulti * atr, middle, lower: middle - atrMulti * atr };
+};
+
+/* Count consecutive squeeze bars ending at the last price */
+const countSqueezeBars = (prices, bbPeriod = 20, bbMult = 2.0, kcPeriod = 20, kcAtrMulti = 1.5, kcAtrPeriod = 14, maxLookback = 20) => {
+  let count = 0;
+  for (let i = prices.length - 1; i >= Math.max(bbPeriod, kcAtrPeriod + 1) && count < maxLookback; i--) {
+    const bb = calcBBAtIndex(prices, i, bbPeriod, bbMult);
+    const kc = calcKCAtIndex(prices, i, kcPeriod, kcAtrMulti, kcAtrPeriod);
+    if (!bb || !kc) break;
+    if (bb.upper < kc.upper && bb.lower > kc.lower) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 };
 
 /* ================================================================
@@ -810,9 +969,286 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
   return out;
 };
 
+/* ================================================================
+   SECTION 4B: V50 RESEARCH STRATEGIES
+   Three strategies from the V50 Quantitative Strategy Guide.
+   EMA_STOCH: EMA(8) + Stochastic(5,3,3) trend scalper
+   SMA_RSI:   SMA(20/50) crossover + RSI pullback swing
+   BB_SQUEEZE: Bollinger Band squeeze breakout
+   ================================================================ */
+
+const computeEmaStoch = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 3, components: {}, macdOk: true, atrSpike: false };
+  if (!prices || prices.length < 40) return out;
+
+  const ema8 = calcEMA(prices, cfg.ema8Period || 8);
+  const ema21 = calcEMA(prices, cfg.ema21Period || 21);
+  const stoch = calcStochastic(prices, cfg.stochK || 5, cfg.stochD || 3, cfg.stochSlowing || 3);
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+  const close = prices[prices.length - 1];
+
+  out.atrSpike = atrData.spike;
+
+  // Component: EMA trend direction
+  if (ema8 !== null) {
+    if (close > ema8) out.components.ema = { dir: 'CALL', score: 70 };
+    else if (close < ema8) out.components.ema = { dir: 'PUT', score: 70 };
+    else out.components.ema = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Stochastic crossover
+  if (stoch.k !== null && stoch.d !== null && stoch.kPrev !== null && stoch.dPrev !== null) {
+    // Check if %K was oversold in recent bars (look at kSeries)
+    const recentK = stoch.kSeries.slice(-5);
+    const wasOversold = recentK.some(v => v < 20);
+    const wasOverbought = recentK.some(v => v > 80);
+    const crossUp = stoch.kPrev < stoch.dPrev && stoch.k > stoch.d;
+    const crossDown = stoch.kPrev > stoch.dPrev && stoch.k < stoch.d;
+
+    if (crossUp && wasOversold && stoch.kPrev <= 20 && stoch.dPrev <= 20) {
+      out.components.stoch = { dir: 'CALL', score: 90 };
+    } else if (crossDown && wasOverbought && stoch.kPrev >= 80 && stoch.dPrev >= 80) {
+      out.components.stoch = { dir: 'PUT', score: 90 };
+    } else if (crossUp && wasOversold) {
+      out.components.stoch = { dir: 'CALL', score: 65 };
+    } else if (crossDown && wasOverbought) {
+      out.components.stoch = { dir: 'PUT', score: 65 };
+    } else {
+      out.components.stoch = { dir: 'NEUTRAL', score: 0 };
+    }
+  } else {
+    out.components.stoch = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: EMA slope filter (8 EMA not flat)
+  if (ema8 !== null && prices.length > 3) {
+    const prevEma8 = calcEMA(prices.slice(0, -3), cfg.ema8Period || 8);
+    const slopeOk = prevEma8 !== null && Math.abs(ema8 - prevEma8) > (cfg.slopeThreshold || 0.5);
+    out.components.slope = { dir: slopeOk ? 'CALL' : 'NEUTRAL', score: slopeOk ? 60 : 0 };
+  }
+
+  // Determine direction: all conditions must align
+  const emaDir = out.components.ema?.dir;
+  const stochDir = out.components.stoch?.dir;
+  const slopeOk = out.components.slope?.dir !== 'NEUTRAL';
+
+  let dir = null, str = 0, votes = 0;
+
+  if (emaDir === 'CALL' && stochDir === 'CALL' && slopeOk) {
+    // Optional 21 EMA filter
+    if (ema21 !== null && ema8 !== null && ema8 < ema21) {
+      str = 50; // downgrade if against longer trend
+    } else {
+      str = out.components.stoch.score;
+    }
+    dir = 'CALL'; votes = 3;
+  } else if (emaDir === 'PUT' && stochDir === 'PUT' && slopeOk) {
+    if (ema21 !== null && ema8 !== null && ema8 > ema21) {
+      str = 50;
+    } else {
+      str = out.components.stoch.score;
+    }
+    dir = 'PUT'; votes = 3;
+  } else if (emaDir === stochDir && emaDir !== 'NEUTRAL') {
+    dir = emaDir; str = 55; votes = 2; // missing slope confirmation
+  }
+
+  if (atrData.spike) str = Math.round(str * 0.6);
+
+  out.direction = dir; out.strength = str; out.votes = votes;
+  out.macdOk = true; // No MACD gate for this strategy
+  return out;
+};
+
+const computeSmaRsi = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 3, components: {}, macdOk: true, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
+
+  const sma20 = calcSMA(prices, cfg.sma20Period || 20);
+  const sma50 = calcSMA(prices, cfg.sma50Period || 50);
+  const rsi = calcRSI(prices, cfg.rsiPeriod || 14);
+  const close = prices[prices.length - 1];
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+
+  out.atrSpike = atrData.spike;
+
+  if (sma20 === null || sma50 === null || rsi === null) return out;
+
+  // Check SMA crossover within last 10 bars
+  const sma20Series = calcSMASeries(prices, cfg.sma20Period || 20);
+  const sma50Series = calcSMASeries(prices, cfg.sma50Period || 50);
+  let recentCrossUp = false, recentCrossDown = false;
+
+  if (sma20Series.length > 0 && sma50Series.length > 0) {
+    const offset = sma20Series.length - sma50Series.length;
+    const lookback = Math.min(10, sma50Series.length - 1);
+    for (let i = 0; i < lookback; i++) {
+      const idx50 = sma50Series.length - 1 - i;
+      const idx20 = idx50 + offset;
+      const prevIdx50 = idx50 - 1;
+      const prevIdx20 = idx20 - 1;
+      if (prevIdx50 >= 0 && prevIdx20 >= 0) {
+        if (sma20Series[prevIdx20] <= sma50Series[prevIdx50] && sma20Series[idx20] > sma50Series[idx50]) recentCrossUp = true;
+        if (sma20Series[prevIdx20] >= sma50Series[prevIdx50] && sma20Series[idx20] < sma50Series[idx50]) recentCrossDown = true;
+      }
+    }
+  }
+
+  // Current relationship
+  const sma20AboveSma50 = sma20 > sma50;
+  const smaSep = Math.abs(sma20 - sma50);
+  const minSep = cfg.minSmaSep || 0.5;
+
+  // Component: SMA crossover
+  if (sma20AboveSma50 && smaSep >= minSep) {
+    out.components.sma = { dir: 'CALL', score: recentCrossUp ? 85 : 65 };
+  } else if (!sma20AboveSma50 && smaSep >= minSep) {
+    out.components.sma = { dir: 'PUT', score: recentCrossDown ? 85 : 65 };
+  } else {
+    out.components.sma = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: RSI filter
+  if (rsi > 50 && rsi < 70) {
+    out.components.rsi = { dir: 'CALL', score: Math.round((rsi - 50) * 3.5) };
+  } else if (rsi < 50 && rsi > 30) {
+    out.components.rsi = { dir: 'PUT', score: Math.round((50 - rsi) * 3.5) };
+  } else {
+    out.components.rsi = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Pullback to 20 SMA
+  const distToSma20 = Math.abs(close - sma20);
+  const pullbackThreshold = cfg.pullbackThreshold || 2;
+  const isPullback = distToSma20 <= pullbackThreshold;
+
+  if (sma20AboveSma50 && isPullback && close >= sma20) {
+    out.components.pullback = { dir: 'CALL', score: 80 };
+  } else if (!sma20AboveSma50 && isPullback && close <= sma20) {
+    out.components.pullback = { dir: 'PUT', score: 80 };
+  } else {
+    out.components.pullback = { dir: 'NEUTRAL', score: isPullback ? 30 : 0 };
+  }
+
+  // Aggregate: need SMA + RSI alignment + pullback
+  const smaDir = out.components.sma.dir;
+  const rsiDir = out.components.rsi.dir;
+  const pbDir = out.components.pullback.dir;
+
+  let dir = null, str = 0, votes = 0;
+
+  if (smaDir === 'CALL' && rsiDir === 'CALL' && pbDir === 'CALL') {
+    dir = 'CALL'; str = Math.round((out.components.sma.score + out.components.rsi.score + out.components.pullback.score) / 3); votes = 3;
+  } else if (smaDir === 'PUT' && rsiDir === 'PUT' && pbDir === 'PUT') {
+    dir = 'PUT'; str = Math.round((out.components.sma.score + out.components.rsi.score + out.components.pullback.score) / 3); votes = 3;
+  } else if (smaDir === rsiDir && smaDir !== 'NEUTRAL') {
+    dir = smaDir; str = Math.round((out.components.sma.score + out.components.rsi.score) / 2 * 0.7); votes = 2;
+  }
+
+  if (atrData.spike) str = Math.round(str * 0.6);
+
+  out.direction = dir; out.strength = str; out.votes = votes;
+  out.macdOk = true;
+  return out;
+};
+
+const computeBbSqueeze = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 4, components: {}, macdOk: false, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
+
+  const bbPeriod = cfg.bbPeriod || 20;
+  const bbMult = cfg.bbMult || 2.0;
+  const kcPeriod = cfg.kcPeriod || 20;
+  const kcAtrMulti = cfg.kcAtrMulti || 1.5;
+  const kcAtrPeriod = cfg.kcAtrPeriod || 14;
+  const minSqueezeBars = cfg.minSqueezeBars || 3;
+
+  const bb = calcBB(prices, bbPeriod);
+  const kc = calcKeltnerChannels(prices, kcPeriod, kcAtrMulti, kcAtrPeriod);
+  const m = calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
+  const rsi = calcRSI(prices, cfg.rsiPeriod || 14);
+  const atr = calcATR(prices, cfg.atrPeriod || 14);
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+  const close = prices[prices.length - 1];
+
+  out.atrSpike = atrData.spike;
+
+  if (!bb.upper || !kc.upper) return out;
+
+  // Check for prior squeeze
+  // Use the previous bar's data to see if squeeze was active BEFORE current bar
+  const prevPrices = prices.slice(0, -1);
+  const squeezeBars = countSqueezeBars(prevPrices, bbPeriod, bbMult, kcPeriod, kcAtrMulti, kcAtrPeriod);
+  const squeezeWasActive = squeezeBars >= minSqueezeBars;
+
+  // Current bar: squeeze fired? (BB expanded beyond KC)
+  const bbAboveKc = bb.upper > kc.upper;
+  const bbBelowKc = bb.lower < kc.lower;
+  const squeezeFiredUp = squeezeWasActive && bbAboveKc;
+  const squeezeFiredDown = squeezeWasActive && bbBelowKc;
+
+  // Component: Squeeze state
+  if (squeezeFiredUp) {
+    out.components.squeeze = { dir: 'CALL', score: 85 };
+  } else if (squeezeFiredDown) {
+    out.components.squeeze = { dir: 'PUT', score: 85 };
+  } else if (squeezeWasActive) {
+    out.components.squeeze = { dir: 'NEUTRAL', score: 40 }; // squeeze still active, waiting
+  } else {
+    out.components.squeeze = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Price breakout beyond BB
+  if (close > bb.upper) {
+    out.components.bb = { dir: 'CALL', score: 80 };
+  } else if (close < bb.lower) {
+    out.components.bb = { dir: 'PUT', score: 80 };
+  } else {
+    out.components.bb = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: MACD/RSI momentum confirmation
+  if (m.histogram !== null) {
+    if (m.histogram > 0) out.components.macd = { dir: 'CALL', score: 70 };
+    else if (m.histogram < 0) out.components.macd = { dir: 'PUT', score: 70 };
+    else out.components.macd = { dir: 'NEUTRAL', score: 0 };
+  } else {
+    out.components.macd = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  if (rsi !== null) {
+    if (rsi > 50) out.components.rsi = { dir: 'CALL', score: Math.round((rsi - 50) * 2) };
+    else out.components.rsi = { dir: 'PUT', score: Math.round((50 - rsi) * 2) };
+  }
+
+  // Aggregate: squeeze fired + price breakout + momentum confirm
+  const sqDir = out.components.squeeze.dir;
+  const bbDir = out.components.bb.dir;
+  const macdDir = out.components.macd.dir;
+
+  let dir = null, str = 0, votes = 0;
+
+  if (sqDir === 'CALL' && bbDir === 'CALL' && macdDir === 'CALL') {
+    dir = 'CALL'; str = Math.round((out.components.squeeze.score + out.components.bb.score + out.components.macd.score) / 3); votes = 3;
+    if (rsi !== null && rsi > 50) { votes = 4; str = Math.min(100, str + 5); }
+  } else if (sqDir === 'PUT' && bbDir === 'PUT' && macdDir === 'PUT') {
+    dir = 'PUT'; str = Math.round((out.components.squeeze.score + out.components.bb.score + out.components.macd.score) / 3); votes = 3;
+    if (rsi !== null && rsi < 50) { votes = 4; str = Math.min(100, str + 5); }
+  } else if (sqDir === bbDir && sqDir !== 'NEUTRAL') {
+    dir = sqDir; str = Math.round((out.components.squeeze.score + out.components.bb.score) / 2 * 0.7); votes = 2;
+  }
+
+  out.macdOk = dir ? (macdDir === dir) : false;
+  out.direction = dir; out.strength = str; out.votes = votes;
+  return out;
+};
+
 const getSignal = (strategy, prices, symbol, isAuto) => {
   const cfg = getConfig(symbol, strategy);
   if (strategy === 'HYBRID') return computeHybrid(prices, cfg, isAuto);
+  if (strategy === 'EMA_STOCH') return computeEmaStoch(prices, cfg);
+  if (strategy === 'SMA_RSI') return computeSmaRsi(prices, cfg);
+  if (strategy === 'BB_SQUEEZE') return computeBbSqueeze(prices, cfg);
   return computeSingle(strategy, prices, cfg, isAuto);
 };
 
@@ -1146,20 +1582,22 @@ const SignalTab = ({
         </div>
       )}
       <div className="fs-11 text-muted mt-8">
-        {strategy} | Votes: {signal.votes}/{signal.total} | MACD Gate: <span style={{ color: signal.macdOk ? 'var(--primary)' : 'var(--danger)' }}>{signal.macdOk ? 'PASS' : 'FAIL'}</span>
+        {STRATEGY_LABELS[strategy] || strategy} | Votes: {signal.votes}/{signal.total}
+        {(strategy !== 'EMA_STOCH' && strategy !== 'SMA_RSI') && <span> | MACD Gate: <span style={{ color: signal.macdOk ? 'var(--primary)' : 'var(--danger)' }}>{signal.macdOk ? 'PASS' : 'FAIL'}</span></span>}
         {signal.atrSpike && <span className="text-warning"> | ATR SPIKE</span>}
       </div>
     </div>
 
-    {/* Component Pills */}
+    {/* Component Pills — dynamically renders whatever indicators the active strategy produces */}
     <div className="card">
       <div className="card-title">Indicator Breakdown</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        <IndicatorPill name="RSI" data={signal.components.rsi} />
-        <IndicatorPill name="StochRSI" data={signal.components.stochRSI} />
-        <IndicatorPill name="BB" data={signal.components.bb} />
-        <IndicatorPill name="EMA" data={signal.components.ema} />
-        <IndicatorPill name="MACD" data={signal.components.macd} />
+        {Object.entries(signal.components || {}).map(([key, data]) => (
+          <IndicatorPill key={key} name={{
+            rsi: 'RSI', stochRSI: 'StochRSI', bb: 'BB', ema: 'EMA', macd: 'MACD',
+            stoch: 'Stoch', slope: 'Slope', sma: 'SMA', pullback: 'Pullback', squeeze: 'Squeeze'
+          }[key] || key.toUpperCase()} data={data} />
+        ))}
       </div>
     </div>
 
@@ -1480,11 +1918,14 @@ const SettingsTab = ({
       <div className="input-group">
         <label className="input-label">Strategy</label>
         <select className="input-field" value={strategy} onChange={e => setStrategy(e.target.value)}>
-          {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
+          {STRATEGIES.map(s => <option key={s} value={s}>{STRATEGY_LABELS[s] || s}</option>)}
         </select>
       </div>
       <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
         {strategy === 'HYBRID' && '5-indicator confluence: RSI + StochRSI + BB + EMA + MACD weighted voting. Requires MACD gate alignment + ATR spike filter.'}
+        {strategy === 'EMA_STOCH' && 'V50 M5 Trend Scalper: EMA(8) trend + Stochastic(5,3,3) oversold/overbought crossover + slope filter. From Deriv official strategy guide. Best on trending V50.'}
+        {strategy === 'SMA_RSI' && 'V50 H1/H4 Pullback Swing: SMA(20/50) crossover + RSI(14) momentum zone + price pullback to 20 SMA. Swing trading for directional V50 sessions.'}
+        {strategy === 'BB_SQUEEZE' && 'V50 M15 Squeeze Breakout: Bollinger Bands inside Keltner Channels (squeeze) then expansion breakout, confirmed by MACD histogram + RSI. 2-6 signals per day.'}
         {strategy === 'RSI' && 'RSI oversold/overbought zones with EMA trend filter and MACD directional gate.'}
         {strategy === 'EMA' && 'EMA crossover detection with ATR spike guard and MACD gate confirmation.'}
         {strategy === 'BB' && 'Bollinger Band touch at extremes combined with StochRSI oversold/overbought and MACD gate.'}
