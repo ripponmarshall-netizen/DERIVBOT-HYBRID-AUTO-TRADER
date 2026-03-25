@@ -2157,6 +2157,7 @@ const App = () => {
   const consLossesRef = useRef(0);
   const cooldownEndRef = useRef(null);
   const sessionStoppedRef = useRef(false);
+  const openContractRef = useRef(null);
   const durKeyRef = useRef(DEFAULT_DUR_KEY); // FIX #4
   const pendingBuyId = useRef(null);
   const contractSubId = useRef(null);
@@ -2192,6 +2193,7 @@ const App = () => {
   useEffect(() => { consLossesRef.current = consLosses; }, [consLosses]);
   useEffect(() => { cooldownEndRef.current = cooldownEnd; }, [cooldownEnd]);
   useEffect(() => { sessionStoppedRef.current = sessionStopped; }, [sessionStopped]);
+  useEffect(() => { openContractRef.current = openContract; }, [openContract]);
   useEffect(() => { durKeyRef.current = durKey; }, [durKey]); // FIX #4
   useEffect(() => { tokenRef.current = token; }, [token]); // FIX #6
 
@@ -2264,7 +2266,7 @@ const App = () => {
     addLog(`Trade placed: ${dirLabel(direction)} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
     // FIX: Safety timeout for buy — if no response in 15s, re-enable buttons
     setTimeout(() => {
-      if (isBuyingRef.current && !openContract) {
+      if (isBuyingRef.current && !openContractRef.current) {
         isBuyingRef.current = false;
         setIsBuying(false);
         addLog('Buy timeout — no response, re-enabling buttons', 'warn');
@@ -2292,7 +2294,7 @@ const App = () => {
     if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return;
 
     // FIX: Don't place auto trade if there's already an open contract
-    if (autoModeRef.current && !isBuyingRef.current) {
+    if (autoModeRef.current && !isBuyingRef.current && !openContractRef.current) {
       placeTrade(sig.direction);
     }
   }, [placeTrade]);
@@ -2577,6 +2579,13 @@ const App = () => {
     setConnStatus('disconnected');
     setRunning(false);
     runningRef.current = false;
+    setOpenContract(null);
+    openContractRef.current = null;
+    isBuyingRef.current = false;
+    setIsBuying(false);
+    if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
+    tickSubId.current = null;
+    contractSubId.current = null;
     setPrices([]);
     pricesRef.current = [];
     setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
