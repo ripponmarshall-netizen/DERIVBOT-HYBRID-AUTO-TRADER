@@ -1,7 +1,31 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
+<!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+
+<!-- Perplexity Computer Attribution — SEO Meta Tags -->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+<!--
+  __  __                 ____        _    __     ___  _
+ |  \/  | __ _ _ __ ___ | __ )  ___ | |_  \ \   / / || |
+ | |\/| |/ _` | '__/ __||  _ \ / _ \| __|  \ \ / /| || |_
+ | |  | | (_| | |  \__ \| |_) | (_) | |_    \ V / |__   _|
+ |_|  |_|\__,_|_|  |___/|____/ \___/ \__|    \_/     |_|
+  Deriv Binary Options Trading Bot — Refactored V4
+  Built with Perplexity Computer
+-->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MarsBot V4 - Trading Bot</title>
@@ -29,109 +53,207 @@ input, select, button, textarea { font-family: inherit; }
 
 /* ===== COLOR VARIABLES ===== */
 :root {
-–bg: #0a0f0d;
-–surface: #111a15;
-–card: #162e22;
-–card-border: #1e3d2d;
-–primary: #00ff88;
-–primary-dim: #00cc6d;
-–danger: #ff3d5f;
-–danger-dim: #cc3050;
-–warning: #ffaa00;
-–muted: #5a9e78;
-–text: #b8d4c8;
-–text-bright: #e0f0e8;
-–text-dim: #3d7a58;
-–radius: 8px;
-–radius-lg: 12px;
+  --bg: #0a0f0d;
+  --surface: #111a15;
+  --card: #162e22;
+  --card-border: #1e3d2d;
+  --primary: #00ff88;
+  --primary-dim: #00cc6d;
+  --danger: #ff3d5f;
+  --danger-dim: #cc3050;
+  --warning: #ffaa00;
+  --muted: #5a9e78;
+  --text: #b8d4c8;
+  --text-bright: #e0f0e8;
+  --text-dim: #3d7a58;
+  --radius: 8px;
+  --radius-lg: 12px;
 }
 
 /* ===== LAYOUT ===== */
 #root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 .app-header {
-display: flex; align-items: center; justify-content: space-between;
-padding: 8px 12px; background: var(–surface); border-bottom: 1px solid var(–card-border);
-flex-shrink: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--card-border);
+  flex-shrink: 0; z-index: 10;
 }
 .app-header .logo { display: flex; align-items: center; gap: 8px; }
 .app-header .logo svg { width: 28px; height: 28px; }
-.app-header .logo-text { font-weight: 700; font-size: 15px; color: var(–primary); letter-spacing: -0.5px; }
-.app-header .logo-ver { font-size: 10px; color: var(–muted); font-weight: 500; }
+.app-header .logo-text { font-weight: 700; font-size: 15px; color: var(--primary); letter-spacing: -0.5px; }
+.app-header .logo-ver { font-size: 10px; color: var(--muted); font-weight: 500; }
 .header-right { display: flex; align-items: center; gap: 10px; }
 .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.conn-dot.connected { background: var(–primary); box-shadow: 0 0 6px var(–primary); }
-.conn-dot.disconnected { background: var(–danger); }
-.conn-dot.connecting { background: var(–warning); animation: pulse 1s infinite; }
+.conn-dot.connected { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+.conn-dot.disconnected { background: var(--danger); }
+.conn-dot.connecting { background: var(--warning); animation: pulse 1s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.balance-display { font-family: ‘JetBrains Mono’, monospace; font-size: 13px; font-weight: 600; color: var(–primary); }
+.balance-display { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--primary); }
 
 .tab-content {
-flex: 1; overflow-y: auto; overflow-x: hidden;
-padding: 12px; padding-bottom: 70px;
--webkit-overflow-scrolling: touch;
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 12px; padding-bottom: 70px;
+  -webkit-overflow-scrolling: touch;
 }
 .tab-bar {
-display: flex; position: fixed; bottom: 0; left: 0; right: 0;
-background: var(–surface); border-top: 1px solid var(–card-border);
-padding: 4px 0; padding-bottom: max(4px, env(safe-area-inset-bottom));
-z-index: 10;
+  display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface); border-top: 1px solid var(--card-border);
+  padding: 4px 0; padding-bottom: max(4px, env(safe-area-inset-bottom));
+  z-index: 10;
 }
 .tab-btn {
-flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-padding: 6px 4px; background: none; border: none; color: var(–muted);
-font-size: 10px; font-weight: 500; cursor: pointer; transition: color 0.2s;
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 4px; background: none; border: none; color: var(--muted);
+  font-size: 10px; font-weight: 500; cursor: pointer; transition: color 0.2s;
 }
-.tab-btn.active { color: var(–primary); }
+.tab-btn.active { color: var(--primary); }
 .tab-btn svg { width: 20px; height: 20px; }
 
 /* ===== CARD ===== */
 .card {
-background: var(–card); border: 1px solid var(–card-border);
-border-radius: var(–radius); padding: 12px; margin-bottom: 10px;
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 12px; margin-bottom: 10px;
 }
 .card-title {
-font-size: 11px; font-weight: 600; text-transform: uppercase;
-letter-spacing: 0.5px; color: var(–muted); margin-bottom: 8px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px;
 }
 
 /* ===== COMPONENTS ===== */
 .btn {
-display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-padding: 10px 16px; border-radius: var(–radius); border: none;
-font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;
-min-height: 44px; touch-action: manipulation;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 16px; border-radius: var(--radius); border: none;
+  font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;
+  min-height: 44px; touch-action: manipulation;
 }
-.btn-primary { background: var(–primary); color: #0a0f0d; }
-.btn-primary:active { background: var(–primary-dim); transform: scale(0.97); }
-.btn-danger { background: var(–danger); color: #fff; }
-.btn-danger:active { background: var(–danger-dim); transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: #0a0f0d; }
+.btn-primary:active { background: var(--primary-dim); transform: scale(0.97); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:active { background: var(--danger-dim); transform: scale(0.97); }
 .btn-outline {
-background: transparent; border: 1px solid var(–card-border); color: var(–text);
+  background: transparent; border: 1px solid var(--card-border); color: var(--text);
 }
-.btn-outline:active { background: var(–card); }
+.btn-outline:active { background: var(--card); }
 .btn-sm { padding: 6px 12px; font-size: 12px; min-height: 36px; }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
 .btn-full { width: 100%; }
 
 .input-group { margin-bottom: 10px; }
-.input-label { display: block; font-size: 11px; font-weight: 600; color: var(–muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.input-label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
 .input-field {
-width: 100%; padding: 10px 12px; background: var(–surface); border: 1px solid var(–card-border);
-border-radius: var(–radius); color: var(–text); font-size: 13px; outline: none;
-font-family: ‘JetBrains Mono’, monospace; min-height: 44px;
+  width: 100%; padding: 10px 12px; background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius); color: var(--text); font-size: 13px; outline: none;
+  font-family: 'JetBrains Mono', monospace; min-height: 44px;
 }
-.input-field:focus { border-color: var(–primary); }
-select.input-field { appearance: none; background-image: url(“data:image/svg+xml,%3Csvg xmlns=‘http://www.w3.org/2000/svg’ width=‘12’ height=‘12’ viewBox=‘0 0 24 24’ fill=‘none’ stroke=’%235a9e78’ stroke-width=‘2’%3E%3Cpath d=‘M6 9l6 6 6-6’/%3E%3C/svg%3E”); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.input-field:focus { border-color: var(--primary); }
+select.input-field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235a9e78' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
 
+/* Toggle Switch */
+.toggle-wrap { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
+.toggle-track {
+  width: 44px; height: 24px; border-radius: 12px; background: var(--surface);
+  border: 1px solid var(--card-border); position: relative; cursor: pointer;
+  transition: background 0.2s; flex-shrink: 0;
+}
+.toggle-track.on { background: var(--primary); border-color: var(--primary); }
+.toggle-thumb {
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  position: absolute; top: 1px; left: 1px; transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.toggle-track.on .toggle-thumb { transform: translateX(20px); }
+
+/* Slider */
+.slider-wrap { padding: 4px 0; }
+.slider-input {
+  -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px;
+  background: var(--surface); outline: none;
+}
+.slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--primary); cursor: pointer;
+}
+.slider-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--primary); }
+
+/* Collapsible */
+.collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; cursor: pointer; user-select: none;
+}
+.collapsible-header h3 { font-size: 13px; font-weight: 600; color: var(--text-bright); }
+.collapsible-chevron { transition: transform 0.2s; color: var(--muted); }
+.collapsible-chevron.open { transform: rotate(180deg); }
+.collapsible-body { overflow: hidden; transition: max-height 0.3s ease; }
+
+/* Pill — FIX #8: Up/Down UI labels */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+.pill-up { background: rgba(0,255,136,0.15); color: var(--primary); }
+.pill-down { background: rgba(255,61,95,0.15); color: var(--danger); }
+.pill-neutral { background: rgba(90,158,120,0.1); color: var(--muted); }
+
+/* Direction Badge — FIX #8: Up/Down labels */
+.dir-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: var(--radius); font-size: 18px;
+  font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+}
+.dir-badge.up { background: rgba(0,255,136,0.15); color: var(--primary); border: 1px solid rgba(0,255,136,0.3); }
+.dir-badge.down { background: rgba(255,61,95,0.15); color: var(--danger); border: 1px solid rgba(255,61,95,0.3); }
+
+/* Signal Strength Gauge */
+.gauge-container { position: relative; width: 160px; height: 100px; margin: 0 auto; }
+
+/* Trade Row */
+.trade-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: var(--radius); margin-bottom: 6px;
+  background: var(--surface); border: 1px solid var(--card-border);
+}
+.trade-row .trade-info { display: flex; flex-direction: column; gap: 2px; }
+.trade-row .trade-dir { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+.trade-row .trade-time { font-size: 10px; color: var(--muted); }
+.trade-row .trade-pnl { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 13px; }
+.trade-row .trade-pnl.win { color: var(--primary); }
+.trade-row .trade-pnl.loss { color: var(--danger); }
+
+/* Log Entry */
+.log-entry { padding: 6px 0; border-bottom: 1px solid rgba(30,61,45,0.3); font-size: 11px; display: flex; gap: 8px; }
+.log-time { font-family: 'JetBrains Mono', monospace; color: var(--muted); flex-shrink: 0; font-size: 10px; }
+.log-msg { word-break: break-word; }
+.log-info { color: var(--text); }
+.log-success { color: var(--primary); }
+.log-warn { color: var(--warning); }
+.log-error { color: var(--danger); }
+
+/* Stats Grid */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.stat-box { padding: 10px; background: var(–surface); border-radius: var(–radius); border: 1px solid var(–card-border); }
-.stat-label { font-size: 10px; font-weight: 600; color: var(–muted); text-transform: uppercase; letter-spacing: 0.3px; }
-.stat-value { font-family: ‘JetBrains Mono’, monospace; font-size: 16px; font-weight: 600; margin-top: 2px; }
+.stat-box { padding: 10px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--card-border); }
+.stat-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+.stat-value { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; margin-top: 2px; }
 
-.text-primary { color: var(–primary); }
-.text-danger { color: var(–danger); }
-.text-warning { color: var(–warning); }
-.text-muted { color: var(–muted); }
+/* Cooldown Overlay */
+.cooldown-bar {
+  background: rgba(255,170,0,0.1); border: 1px solid rgba(255,170,0,0.3);
+  border-radius: var(--radius); padding: 12px; text-align: center; margin-bottom: 10px;
+}
+.cooldown-bar .cd-label { font-size: 11px; color: var(--warning); font-weight: 600; text-transform: uppercase; }
+.cooldown-bar .cd-time { font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--warning); font-weight: 700; margin-top: 4px; }
+
+/* Backtest results */
+.bt-trade-list { max-height: 300px; overflow-y: auto; }
+.bt-trade { display: flex; justify-content: space-between; padding: 6px 8px; font-size: 11px; border-bottom: 1px solid rgba(30,61,45,0.2); }
+
+/* Open contract countdown */
+.contract-countdown { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; text-align: center; margin: 4px 0; }
+
+/* Misc */
+.text-primary { color: var(--primary); }
+.text-danger { color: var(--danger); }
+.text-warning { color: var(--warning); }
+.text-muted { color: var(--muted); }
 .text-center { text-align: center; }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }
 .gap-8 { gap: 8px; }
@@ -143,84 +265,102 @@ select.input-field { appearance: none; background-image: url(“data:image/svg+x
 .fs-12 { font-size: 12px; }
 .fs-13 { font-size: 13px; }
 
-/* ===== EMPTY STATE ===== */
-#root-empty {
-display: flex; flex-direction: column; align-items: center; justify-content: center;
-height: 100vh; gap: 12px; color: var(–muted); text-align: center; padding: 24px;
-}
-#root-empty h2 { color: var(–primary); font-size: 20px; }
-#root-empty p { font-size: 13px; line-height: 1.6; }
-
-/* ===== AI STATUS CARD ===== */
-#ai-status-card {
-background: var(–card); border: 1px solid var(–card-border);
-border-radius: var(–radius); padding: 16px; margin: 16px;
-font-size: 12px; line-height: 1.8;
-}
-#ai-status-card h3 { color: var(–primary); margin-bottom: 8px; font-size: 13px; }
-
-footer.footer-attr { text-align: center; padding: 8px; font-size: 10px; }
-footer.footer-attr a { color: var(–muted); text-decoration: none; }
-footer.footer-attr a:hover { color: var(–primary); }
+/* Footer link */
+.footer-attr { text-align: center; padding: 8px; font-size: 10px; }
+.footer-attr a { color: var(--muted); text-decoration: none; }
+.footer-attr a:hover { color: var(--primary); }
 </style>
-
 </head>
 <body>
-<div id="root">
-  <div id="root-empty">
-    <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="14" stroke="#00ff88" stroke-width="2"/>
-      <circle cx="16" cy="16" r="6" fill="#00ff88" opacity="0.3"/>
-      <path d="M16 2L16 8M16 24L16 30M2 16L8 16M24 16L30 16" stroke="#00ff88" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-    <h2>MarsBot V4</h2>
-    <p>Script engine loaded. No UI renderer attached.<br>Connect a WebSocket layer and call <code style="color:var(--primary)">runStrategy()</code> to begin.</p>
-    <div id="ai-status-card">
-      <h3>🧠 AI Learning State</h3>
-      <div id="ai-display">Loading...</div>
-    </div>
-    <button class="btn btn-outline btn-sm" onclick="resetAI()">Reset AI State</button>
-  </div>
-</div>
+<div id="root"></div>
 
-<script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-// =============================
-// 🔒 LOCKED CONFIG
-// =============================
-const STRATEGIES = {
-  DEFAULT: "default",
-  MARSBOT_PRO_V50: "marsbot_pro_v50"
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ================================================================
+   SECTION 1: CONSTANTS & CONFIGURATION
+   ================================================================ */
+
+const WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089';
+const MAX_RECONNECT = 10;
+const PING_INTERVAL = 25000;
+const MAX_PRICES = 200;
+const MAX_LOGS = 500;
+const TRADE_STORAGE_KEY = 'marsbot_v4_trades';
+const MAX_STORED_TRADES = 200;
+
+const SYMBOLS = [
+  { value: 'R_10', label: 'Vol 10' },
+  { value: 'R_25', label: 'Vol 25' },
+  { value: 'R_50', label: 'Vol 50' },
+  { value: 'R_75', label: 'Vol 75' },
+  { value: 'R_100', label: 'Vol 100' },
+  { value: 'R_10_1S', label: 'Vol 10 (1s)' },
+  { value: 'R_25_1S', label: 'Vol 25 (1s)' },
+  { value: 'R_50_1S', label: 'Vol 50 (1s)' },
+  { value: 'R_75_1S', label: 'Vol 75 (1s)' },
+  { value: 'R_100_1S', label: 'Vol 100 (1s)' },
+];
+
+/* FIX #4: Duration as single source of truth.
+   Each entry has value (number), unit (letter code), and label.
+   The selected entry is looked up by a string key "value|unit",
+   so there's zero possibility of index mismatch. */
+const DURATIONS = [
+  { value: 1, unit: 't', label: '1 Tick' },
+  { value: 2, unit: 't', label: '2 Ticks' },
+  { value: 3, unit: 't', label: '3 Ticks' },
+  { value: 5, unit: 't', label: '5 Ticks' },
+  { value: 7, unit: 't', label: '7 Ticks' },
+  { value: 10, unit: 't', label: '10 Ticks' },
+  { value: 15, unit: 's', label: '15 Sec' },
+  { value: 30, unit: 's', label: '30 Sec' },
+  { value: 60, unit: 's', label: '1 Min' },
+  { value: 120, unit: 's', label: '2 Min' },
+  { value: 300, unit: 's', label: '5 Min' },
+];
+
+const makeDurKey = (d) => `${d.value}|${d.unit}`;
+const parseDurKey = (key) => {
+  const entry = DURATIONS.find(d => makeDurKey(d) === key);
+  return entry || DURATIONS[4]; // fallback to 7 ticks
 };
+const DEFAULT_DUR_KEY = makeDurKey(DURATIONS[4]); // 7 ticks
+
+/* ================================================================
+   MARSBOT PRO V50 — LOCKED CONFIG & AI ENGINE
+   🔒 These values are frozen and cannot be changed by user inputs.
+   ================================================================ */
+
+const MARSBOT_PRO_ID = 'MARSBOT_PRO_V50';
 
 const MARSBOT_PRO_CONFIG = Object.freeze({
   expiryCandles: 4,
   baseRisk: 0.01,
-  minConfidence: 70
+  minConfidence: 70,
 });
 
-// =============================
-// 🧠 LEARNING ENGINE
-// =============================
-const AI_STATE = JSON.parse(localStorage.getItem("marsbot_ai")) || {
+// 🧠 Persistent AI State (localStorage-backed)
+const AI_STATE = JSON.parse(localStorage.getItem('marsbot_ai') || 'null') || {
   wins: 0,
   losses: 0,
   rsiOffset: 0,
-  confidenceOffset: 0
+  confidenceOffset: 0,
 };
 
 function saveAI() {
-  localStorage.setItem("marsbot_ai", JSON.stringify(AI_STATE));
+  localStorage.setItem('marsbot_ai', JSON.stringify(AI_STATE));
 }
 
 function updateAI(result) {
-  if (result === "win") AI_STATE.wins++;
-  if (result === "loss") AI_STATE.losses++;
-
+  if (result === 'win') AI_STATE.wins++;
+  if (result === 'loss') AI_STATE.losses++;
   const total = AI_STATE.wins + AI_STATE.losses;
   const winRate = total ? AI_STATE.wins / total : 0.5;
-
-  // Adaptive logic
   if (winRate < 0.5) {
     AI_STATE.rsiOffset += 1;
     AI_STATE.confidenceOffset += 2;
@@ -228,207 +368,2587 @@ function updateAI(result) {
     AI_STATE.rsiOffset -= 1;
     AI_STATE.confidenceOffset -= 1;
   }
-
-  // Clamp values
   AI_STATE.rsiOffset = Math.max(-5, Math.min(5, AI_STATE.rsiOffset));
   AI_STATE.confidenceOffset = Math.max(-10, Math.min(10, AI_STATE.confidenceOffset));
-
   saveAI();
-  renderAIStatus();
 }
 
-// =============================
-// 📊 INDICATORS
-// =============================
-function EMA(prices, period) {
-  if (!prices || prices.length < period) return null;   // BUG FIX #1
+
+const STRATEGIES = ['HYBRID', 'EMA_STOCH', 'SMA_RSI', 'BB_SQUEEZE', 'RSI', 'EMA', 'BB', 'MACD', 'MARSBOT_PRO_V50'];
+const STRATEGY_LABELS = {
+  HYBRID: 'Hybrid (5-Indicator)',
+  EMA_STOCH: 'EMA-Stoch Scalper',
+  SMA_RSI: 'SMA-RSI Pullback',
+  BB_SQUEEZE: 'BB Squeeze Breakout',
+  RSI: 'RSI',
+  EMA: 'EMA Crossover',
+  BB: 'Bollinger Bands',
+  MACD: 'MACD',
+  MARSBOT_PRO_V50: '🔒 MarsBotPro V50',
+};
+const MM_SYSTEMS = ['FLAT', 'MARTINGALE', 'DALEMBERT', 'REVERSE_MARTINGALE'];
+
+/* FIX #8: UI label helper — maps API direction to user-facing label.
+   The API always sends CALL/PUT. The UI always shows Up/Down. */
+const dirLabel = (apiDir) => apiDir === 'CALL' ? 'Up' : apiDir === 'PUT' ? 'Down' : '—';
+const dirArrow = (apiDir) => apiDir === 'CALL' ? '▲' : apiDir === 'PUT' ? '▼' : '—';
+const dirClass = (apiDir) => apiDir === 'CALL' ? 'up' : apiDir === 'PUT' ? 'down' : 'neutral';
+
+const GENERIC_CONFIG = {
+  HYBRID: {
+    rsiPeriod: 14, stochPeriod: 14, stochSmooth: 3, bbPeriod: 20,
+    emaFast: 9, emaSlow: 21, emaTrend: 50,
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+    atrPeriod: 14, atrSpikeMulti: 1.5,
+    weights: { rsi: 1, stochRSI: 1, bb: 1, ema: 1, macd: 1 },
+    autoMinVotes: 3, autoMinStrength: 78,
+    manualMinVotes: 2, manualMinStrength: 65,
+  },
+  RSI: {
+    rsiPeriod: 14, rsiOB: 70, rsiOS: 30,
+    emaTrend: 50, macdFast: 12, macdSlow: 26, macdSignal: 9,
+  },
+  EMA: {
+    emaFast: 9, emaSlow: 21,
+    atrPeriod: 14, atrSpikeMulti: 1.5,
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+  },
+  BB: {
+    bbPeriod: 20, stochPeriod: 14, stochSmooth: 3,
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+  },
+  MACD: {
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+    rsiPeriod: 14, rsiOB: 65, rsiOS: 35,
+  },
+  /* --- V50 Research Strategies --- */
+  EMA_STOCH: {
+    ema8Period: 8, ema21Period: 21,
+    stochK: 5, stochD: 3, stochSlowing: 3,
+    slopeThreshold: 0.5,
+    atrPeriod: 14,
+  },
+  SMA_RSI: {
+    sma20Period: 20, sma50Period: 50,
+    rsiPeriod: 14,
+    pullbackThreshold: 2,
+    minSmaSep: 0.5,
+    atrPeriod: 14,
+  },
+  BB_SQUEEZE: {
+    bbPeriod: 20, bbMult: 2.0,
+    kcPeriod: 20, kcAtrMulti: 1.5, kcAtrPeriod: 14,
+    minSqueezeBars: 3,
+    macdFast: 12, macdSlow: 26, macdSignal: 9,
+    rsiPeriod: 14,
+    atrPeriod: 14,
+  },
+};
+
+const R50_CONFIG = {
+  ...GENERIC_CONFIG,
+  HYBRID: {
+    ...GENERIC_CONFIG.HYBRID,
+    rsiPeriod: 12, stochPeriod: 12, bbPeriod: 18,
+    emaFast: 8, emaSlow: 18, emaTrend: 45,
+    weights: { rsi: 1.2, stochRSI: 1, bb: 1.1, ema: 0.9, macd: 1.3 },
+    autoMinVotes: 3, autoMinStrength: 75,
+  },
+  /* V50-tuned research strategies */
+  EMA_STOCH: {
+    ...GENERIC_CONFIG.EMA_STOCH,
+    slopeThreshold: 0.3, // V50 smoother, lower threshold
+  },
+  SMA_RSI: {
+    ...GENERIC_CONFIG.SMA_RSI,
+    pullbackThreshold: 1.5, // V50 tighter pullbacks
+    minSmaSep: 0.3,
+  },
+  BB_SQUEEZE: {
+    ...GENERIC_CONFIG.BB_SQUEEZE,
+    minSqueezeBars: 3, // V50 has consistent squeeze behavior
+  },
+};
+
+const getConfig = (symbol, strategy) => {
+  const cfg = symbol === 'R_50' ? R50_CONFIG : GENERIC_CONFIG;
+  return cfg[strategy] || GENERIC_CONFIG[strategy];
+};
+
+/* ================================================================
+   SECTION 2: TECHNICAL INDICATORS (pure functions)
+   FIX #3: Every function has explicit data-sufficiency guards
+   and returns safe defaults (null / empty) if insufficient data.
+   No NaN propagation — all divisions guarded against zero.
+   ================================================================ */
+
+const calcEMA = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return null;
   const k = 2 / (period + 1);
-  let ema = prices[0];
-  for (let i = 1; i < prices.length; i++) {
+  let ema = 0;
+  for (let i = 0; i < period; i++) ema += prices[i];
+  ema /= period;
+  for (let i = period; i < prices.length; i++) {
     ema = prices[i] * k + ema * (1 - k);
   }
-  return ema;
-}
+  return isFinite(ema) ? ema : null;
+};
 
-function RSI(prices, period) {
-  if (!prices || prices.length < period + 1) return null; // BUG FIX #2
+const calcEMASeries = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return [];
+  const k = 2 / (period + 1);
+  let ema = 0;
+  for (let i = 0; i < period; i++) ema += prices[i];
+  ema /= period;
+  const series = [ema];
+  for (let i = period; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+    series.push(ema);
+  }
+  return series;
+};
+
+const calcRSI = (prices, period = 14) => {
+  if (!prices || prices.length < period + 1 || period < 1) return null;
   let gains = 0, losses = 0;
-  for (let i = prices.length - period; i < prices.length - 1; i++) {
-    const diff = prices[i + 1] - prices[i];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+  for (let i = 1; i <= period; i++) {
+    const d = prices[i] - prices[i - 1];
+    if (d > 0) gains += d; else losses -= d;
   }
-  const rs = gains / (losses || 1);
-  return 100 - (100 / (1 + rs));
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  for (let i = period + 1; i < prices.length; i++) {
+    const d = prices[i] - prices[i - 1];
+    avgGain = (avgGain * (period - 1) + (d > 0 ? d : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (d < 0 ? -d : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  const rsi = 100 - 100 / (1 + rs);
+  return isFinite(rsi) ? rsi : null;
+};
+
+const calcRSISeries = (prices, period = 14) => {
+  if (!prices || prices.length < period + 1 || period < 1) return [];
+  const series = [];
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = prices[i] - prices[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  if (avgLoss === 0) series.push(100);
+  else { const rs = avgGain / avgLoss; series.push(100 - 100 / (1 + rs)); }
+  for (let i = period + 1; i < prices.length; i++) {
+    const d = prices[i] - prices[i - 1];
+    avgGain = (avgGain * (period - 1) + (d > 0 ? d : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (d < 0 ? -d : 0)) / period;
+    if (avgLoss === 0) series.push(100);
+    else { const rs = avgGain / avgLoss; series.push(100 - 100 / (1 + rs)); }
+  }
+  return series;
+};
+
+const calcStochRSI = (prices, rsiPeriod = 14, stochPeriod = 14, smooth = 3) => {
+  const rsiSeries = calcRSISeries(prices, rsiPeriod);
+  if (rsiSeries.length < stochPeriod) return { k: null, d: null };
+  const stochVals = [];
+  for (let i = stochPeriod - 1; i < rsiSeries.length; i++) {
+    const slice = rsiSeries.slice(i - stochPeriod + 1, i + 1);
+    const min = Math.min(...slice);
+    const max = Math.max(...slice);
+    const range = max - min;
+    stochVals.push(range === 0 ? 50 : ((rsiSeries[i] - min) / range) * 100);
+  }
+  if (stochVals.length < smooth) return { k: stochVals[stochVals.length - 1] || null, d: null };
+  const kLine = [];
+  for (let i = smooth - 1; i < stochVals.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < smooth; j++) sum += stochVals[i - j];
+    kLine.push(sum / smooth);
+  }
+  const k = kLine[kLine.length - 1];
+  let d = null;
+  if (kLine.length >= smooth) {
+    let sum = 0;
+    for (let j = 0; j < smooth; j++) sum += kLine[kLine.length - 1 - j];
+    d = sum / smooth;
+  }
+  return { k: isFinite(k) ? k : null, d: isFinite(d) ? d : null };
+};
+
+const calcBB = (prices, period = 20) => {
+  if (!prices || prices.length < period || period < 1) return { upper: null, middle: null, lower: null, pctB: null };
+  const slice = prices.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period;
+  const std = Math.sqrt(variance);
+  const upper = mean + 2 * std;
+  const lower = mean - 2 * std;
+  const current = prices[prices.length - 1];
+  const range = upper - lower;
+  const pctB = range === 0 ? 50 : ((current - lower) / range) * 100;
+  return { upper, middle: mean, lower, pctB: isFinite(pctB) ? pctB : null };
+};
+
+const calcMACD = (prices, fast = 12, slow = 26, signal = 9) => {
+  const nullResult = { macd: null, signal: null, histogram: null, crossUp: false, crossDown: false, bullish: false };
+  if (!prices || prices.length < slow + signal) return nullResult;
+  const fastEMA = calcEMASeries(prices, fast);
+  const slowEMA = calcEMASeries(prices, slow);
+  if (fastEMA.length === 0 || slowEMA.length === 0) return nullResult;
+  const offset = fastEMA.length - slowEMA.length;
+  const macdLine = [];
+  for (let i = 0; i < slowEMA.length; i++) {
+    macdLine.push(fastEMA[i + offset] - slowEMA[i]);
+  }
+  if (macdLine.length < signal) return { ...nullResult, macd: macdLine[macdLine.length - 1] || null };
+  const signalEMA = calcEMASeries(macdLine, signal);
+  if (signalEMA.length === 0) return { ...nullResult, macd: macdLine[macdLine.length - 1] || null };
+  const currentMACD = macdLine[macdLine.length - 1];
+  const currentSignal = signalEMA[signalEMA.length - 1];
+  const prevMACD = macdLine.length >= 2 ? macdLine[macdLine.length - 2] : currentMACD;
+  const prevSignal = signalEMA.length >= 2 ? signalEMA[signalEMA.length - 2] : currentSignal;
+  const histogram = currentMACD - currentSignal;
+  const crossUp = prevMACD <= prevSignal && currentMACD > currentSignal;
+  const crossDown = prevMACD >= prevSignal && currentMACD < currentSignal;
+  const bullish = currentMACD > currentSignal;
+  return { macd: currentMACD, signal: currentSignal, histogram, crossUp, crossDown, bullish };
+};
+
+/* FIX #3: ATR — O(1) single-pass instead of O(n^2) recompute.
+   Only calculates ATR once from the tail of the price array,
+   and calculates the rolling average from a single pass. */
+const calcATR = (prices, period = 14) => {
+  if (!prices || prices.length < period + 1 || period < 1) return null;
+  let sum = 0;
+  for (let i = prices.length - period; i < prices.length; i++) {
+    sum += Math.abs(prices[i] - prices[i - 1]);
+  }
+  const atr = sum / period;
+  return isFinite(atr) ? atr : null;
+};
+
+const calcATRAvg = (prices, period = 14, avgLen = 50) => {
+  if (!prices || prices.length < avgLen + period + 1) return { atr: null, avg: null, spike: false };
+  const atr = calcATR(prices, period);
+  if (atr === null) return { atr: null, avg: null, spike: false };
+  // Compute rolling ATR average in a single pass from the end
+  let atrSum = 0;
+  let count = 0;
+  for (let end = prices.length; end >= period + 1 && count < avgLen; end--) {
+    let s = 0;
+    for (let j = end - period; j < end; j++) {
+      s += Math.abs(prices[j] - prices[j - 1]);
+    }
+    atrSum += s / period;
+    count++;
+  }
+  if (count < avgLen) return { atr, avg: null, spike: false };
+  const avg = atrSum / count;
+  return { atr, avg, spike: atr > avg * 1.5 };
+};
+
+const macdGate = (prices, cfg) => {
+  return calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
+};
+
+/* ---- SMA (Simple Moving Average) ---- */
+const calcSMA = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return null;
+  let sum = 0;
+  for (let i = prices.length - period; i < prices.length; i++) sum += prices[i];
+  return sum / period;
+};
+
+const calcSMASeries = (prices, period) => {
+  if (!prices || prices.length < period || period < 1) return [];
+  const series = [];
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += prices[i];
+  series.push(sum / period);
+  for (let i = period; i < prices.length; i++) {
+    sum += prices[i] - prices[i - period];
+    series.push(sum / period);
+  }
+  return series;
+};
+
+/* ---- Classic Stochastic Oscillator (K, D) ---- */
+const calcStochastic = (prices, kPeriod = 5, dPeriod = 3, slowing = 3) => {
+  const nullResult = { k: null, d: null, kPrev: null, dPrev: null, kSeries: [] };
+  if (!prices || prices.length < kPeriod + slowing + dPeriod) return nullResult;
+  // Step 1: Raw %K values (fast K)
+  const rawK = [];
+  for (let i = kPeriod - 1; i < prices.length; i++) {
+    let high = -Infinity, low = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) {
+      if (prices[j] > high) high = prices[j];
+      if (prices[j] < low) low = prices[j];
+    }
+    const range = high - low;
+    rawK.push(range === 0 ? 50 : ((prices[i] - low) / range) * 100);
+  }
+  // Step 2: Slow %K (SMA of rawK with 'slowing' period)
+  if (rawK.length < slowing) return nullResult;
+  const slowK = [];
+  for (let i = slowing - 1; i < rawK.length; i++) {
+    let s = 0;
+    for (let j = 0; j < slowing; j++) s += rawK[i - j];
+    slowK.push(s / slowing);
+  }
+  // Step 3: %D (SMA of slowK with dPeriod)
+  if (slowK.length < dPeriod) return { ...nullResult, k: slowK[slowK.length - 1], kSeries: slowK };
+  const dLine = [];
+  for (let i = dPeriod - 1; i < slowK.length; i++) {
+    let s = 0;
+    for (let j = 0; j < dPeriod; j++) s += slowK[i - j];
+    dLine.push(s / dPeriod);
+  }
+  return {
+    k: slowK[slowK.length - 1],
+    d: dLine[dLine.length - 1],
+    kPrev: slowK.length >= 2 ? slowK[slowK.length - 2] : null,
+    dPrev: dLine.length >= 2 ? dLine[dLine.length - 2] : null,
+    kSeries: slowK,
+  };
+};
+
+/* ---- Keltner Channels ---- */
+const calcKeltnerChannels = (prices, period = 20, atrMulti = 1.5, atrPeriod = 14) => {
+  const nullResult = { upper: null, middle: null, lower: null };
+  if (!prices || prices.length < Math.max(period, atrPeriod + 1)) return nullResult;
+  const middle = calcEMA(prices, period);
+  const atr = calcATR(prices, atrPeriod);
+  if (middle === null || atr === null) return nullResult;
+  return { upper: middle + atrMulti * atr, middle, lower: middle - atrMulti * atr };
+};
+
+/* ---- Bollinger Bands Series (for squeeze detection over N bars) ---- */
+const calcBBAtIndex = (prices, endIdx, period = 20, mult = 2.0) => {
+  if (endIdx < period - 1) return null;
+  let sum = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) sum += prices[i];
+  const mean = sum / period;
+  let variance = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) variance += (prices[i] - mean) ** 2;
+  const std = Math.sqrt(variance / period);
+  return { upper: mean + mult * std, middle: mean, lower: mean - mult * std };
+};
+
+const calcKCAtIndex = (prices, endIdx, period = 20, atrMulti = 1.5, atrPeriod = 14) => {
+  if (endIdx < Math.max(period, atrPeriod)) return null;
+  // EMA up to endIdx
+  const slice = prices.slice(0, endIdx + 1);
+  const middle = calcEMA(slice, period);
+  if (middle === null) return null;
+  let atrSum = 0;
+  for (let i = endIdx - atrPeriod + 1; i <= endIdx; i++) {
+    atrSum += Math.abs(prices[i] - prices[i - 1]);
+  }
+  const atr = atrSum / atrPeriod;
+  return { upper: middle + atrMulti * atr, middle, lower: middle - atrMulti * atr };
+};
+
+/* Count consecutive squeeze bars ending at the last price */
+const countSqueezeBars = (prices, bbPeriod = 20, bbMult = 2.0, kcPeriod = 20, kcAtrMulti = 1.5, kcAtrPeriod = 14, maxLookback = 20) => {
+  let count = 0;
+  for (let i = prices.length - 1; i >= Math.max(bbPeriod, kcAtrPeriod + 1) && count < maxLookback; i--) {
+    const bb = calcBBAtIndex(prices, i, bbPeriod, bbMult);
+    const kc = calcKCAtIndex(prices, i, kcPeriod, kcAtrMulti, kcAtrPeriod);
+    if (!bb || !kc) break;
+    if (bb.upper < kc.upper && bb.lower > kc.lower) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+};
+
+/* ================================================================
+   SECTION 3: RSI DIVERGENCE DETECTION
+   ================================================================ */
+
+const detectRSIDivergence = (prices, rsiPeriod = 14, lookback = 30) => {
+  const result = { bullish: false, bearish: false };
+  if (!prices || prices.length < rsiPeriod + lookback) return result;
+  const pSlice = prices.slice(-lookback);
+  const rsiSeries = calcRSISeries(prices, rsiPeriod);
+  if (rsiSeries.length < lookback) return result;
+  const rSlice = rsiSeries.slice(-lookback);
+
+  const findLocalMaxima = (arr) => {
+    const maxima = [];
+    for (let i = 2; i < arr.length - 2; i++) {
+      if (arr[i] > arr[i-1] && arr[i] > arr[i-2] && arr[i] > arr[i+1] && arr[i] > arr[i+2]) {
+        maxima.push({ idx: i, val: arr[i] });
+      }
+    }
+    return maxima;
+  };
+  const findLocalMinima = (arr) => {
+    const minima = [];
+    for (let i = 2; i < arr.length - 2; i++) {
+      if (arr[i] < arr[i-1] && arr[i] < arr[i-2] && arr[i] < arr[i+1] && arr[i] < arr[i+2]) {
+        minima.push({ idx: i, val: arr[i] });
+      }
+    }
+    return minima;
+  };
+
+  const pMaxima = findLocalMaxima(pSlice);
+  const rMaxima = findLocalMaxima(rSlice);
+  if (pMaxima.length >= 2 && rMaxima.length >= 2) {
+    const pLast2 = pMaxima.slice(-2);
+    const rLast2 = rMaxima.slice(-2);
+    if (pLast2[1].val > pLast2[0].val && rLast2[1].val < rLast2[0].val) {
+      result.bearish = true;
+    }
+  }
+
+  const pMinima = findLocalMinima(pSlice);
+  const rMinima = findLocalMinima(rSlice);
+  if (pMinima.length >= 2 && rMinima.length >= 2) {
+    const pLast2 = pMinima.slice(-2);
+    const rLast2 = rMinima.slice(-2);
+    if (pLast2[1].val < pLast2[0].val && rLast2[1].val > rLast2[0].val) {
+      result.bullish = true;
+    }
+  }
+  return result;
+};
+
+/* ================================================================
+   SECTION 4: STRATEGY ENGINES
+   FIX #3: Minimum data requirements enforced per strategy.
+   HYBRID needs 60 ticks, single strategies need 40.
+   ================================================================ */
+
+const computeHybrid = (prices, cfg, isAuto) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
+
+  const rsi = calcRSI(prices, cfg.rsiPeriod);
+  const stoch = calcStochRSI(prices, cfg.rsiPeriod, cfg.stochPeriod, cfg.stochSmooth);
+  const bb = calcBB(prices, cfg.bbPeriod);
+  const emaF = calcEMA(prices, cfg.emaFast);
+  const emaS = calcEMA(prices, cfg.emaSlow);
+  const emaT = calcEMA(prices, cfg.emaTrend);
+  const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+
+  out.macdOk = m.bullish !== null ? true : false;
+  out.atrSpike = atrData.spike;
+  const w = cfg.weights;
+  let callScore = 0, putScore = 0, callVotes = 0, putVotes = 0;
+
+  if (rsi !== null) {
+    if (rsi < 35) { callScore += w.rsi * (35 - rsi) / 35 * 100; callVotes++; out.components.rsi = { dir: 'CALL', score: Math.round((35 - rsi) / 35 * 100) }; }
+    else if (rsi > 65) { putScore += w.rsi * (rsi - 65) / 35 * 100; putVotes++; out.components.rsi = { dir: 'PUT', score: Math.round((rsi - 65) / 35 * 100) }; }
+    else { out.components.rsi = { dir: 'NEUTRAL', score: 0 }; }
+  }
+
+  if (stoch.k !== null) {
+    if (stoch.k < 20) { callScore += w.stochRSI * (20 - stoch.k) / 20 * 100; callVotes++; out.components.stochRSI = { dir: 'CALL', score: Math.round((20 - stoch.k) / 20 * 100) }; }
+    else if (stoch.k > 80) { putScore += w.stochRSI * (stoch.k - 80) / 20 * 100; putVotes++; out.components.stochRSI = { dir: 'PUT', score: Math.round((stoch.k - 80) / 20 * 100) }; }
+    else { out.components.stochRSI = { dir: 'NEUTRAL', score: 0 }; }
+  }
+
+  if (bb.pctB !== null) {
+    if (bb.pctB < 10) { callScore += w.bb * (10 - bb.pctB) / 10 * 100; callVotes++; out.components.bb = { dir: 'CALL', score: Math.round((10 - bb.pctB) / 10 * 100) }; }
+    else if (bb.pctB > 90) { putScore += w.bb * (bb.pctB - 90) / 10 * 100; putVotes++; out.components.bb = { dir: 'PUT', score: Math.round((bb.pctB - 90) / 10 * 100) }; }
+    else { out.components.bb = { dir: 'NEUTRAL', score: 0 }; }
+  }
+
+  if (emaF !== null && emaS !== null) {
+    const price = prices[prices.length - 1];
+    if (emaF > emaS && price > emaF) { callScore += w.ema * 80; callVotes++; out.components.ema = { dir: 'CALL', score: 80 }; }
+    else if (emaF < emaS && price < emaF) { putScore += w.ema * 80; putVotes++; out.components.ema = { dir: 'PUT', score: 80 }; }
+    else { out.components.ema = { dir: 'NEUTRAL', score: 0 }; }
+  }
+
+  if (m.macd !== null) {
+    if (m.crossUp || (m.bullish && m.histogram > 0)) {
+      callScore += w.macd * (m.crossUp ? 100 : 70);
+      callVotes++;
+      out.components.macd = { dir: 'CALL', score: m.crossUp ? 100 : 70 };
+    } else if (m.crossDown || (!m.bullish && m.histogram < 0)) {
+      putScore += w.macd * (m.crossDown ? 100 : 70);
+      putVotes++;
+      out.components.macd = { dir: 'PUT', score: m.crossDown ? 100 : 70 };
+    } else {
+      out.components.macd = { dir: 'NEUTRAL', score: 0 };
+    }
+  }
+
+  const totalWeight = w.rsi + w.stochRSI + w.bb + w.ema + w.macd;
+  let direction = null, votes = 0, strength = 0;
+  if (callScore > putScore) {
+    direction = 'CALL'; votes = callVotes; strength = totalWeight > 0 ? Math.min(100, Math.round(callScore / totalWeight)) : 0;
+  } else if (putScore > callScore) {
+    direction = 'PUT'; votes = putVotes; strength = totalWeight > 0 ? Math.min(100, Math.round(putScore / totalWeight)) : 0;
+  }
+
+  const macdDir = m.bullish ? 'CALL' : 'PUT';
+  out.macdOk = direction === macdDir;
+
+  if (emaT !== null) {
+    const price = prices[prices.length - 1];
+    if (direction === 'CALL' && price < emaT) strength = Math.round(strength * 0.7);
+    if (direction === 'PUT' && price > emaT) strength = Math.round(strength * 0.7);
+  }
+
+  if (atrData.spike) strength = Math.round(strength * 0.6);
+
+  const div = detectRSIDivergence(prices, cfg.rsiPeriod);
+  if (div.bullish && direction === 'CALL') strength = Math.min(100, strength + 5);
+  if (div.bearish && direction === 'PUT') strength = Math.min(100, strength + 5);
+
+  const minVotes = isAuto ? cfg.autoMinVotes : cfg.manualMinVotes;
+  const minStr = isAuto ? cfg.autoMinStrength : cfg.manualMinStrength;
+
+  if (votes < minVotes || strength < minStr || !out.macdOk) {
+    direction = null;
+  }
+
+  out.direction = direction;
+  out.strength = strength;
+  out.votes = votes;
+  return out;
+};
+
+const computeSingle = (strategy, prices, cfg, isAuto) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 1, components: {}, macdOk: false, atrSpike: false };
+  if (!prices || prices.length < 40) return out;
+
+  const m = macdGate(prices, cfg);
+
+  if (strategy === 'RSI') {
+    const rsi = calcRSI(prices, cfg.rsiPeriod);
+    const emaT = calcEMA(prices, cfg.emaTrend || 50);
+    if (rsi === null) return out;
+    let dir = null, str = 0;
+    if (rsi < cfg.rsiOS) { dir = 'CALL'; str = Math.round((cfg.rsiOS - rsi) / cfg.rsiOS * 100); }
+    else if (rsi > cfg.rsiOB) { dir = 'PUT'; str = Math.round((rsi - cfg.rsiOB) / (100 - cfg.rsiOB) * 100); }
+    out.components.rsi = { dir: dir || 'NEUTRAL', score: str };
+    if (dir && emaT !== null) {
+      const price = prices[prices.length - 1];
+      if (dir === 'CALL' && price < emaT) str = Math.round(str * 0.7);
+      if (dir === 'PUT' && price > emaT) str = Math.round(str * 0.7);
+    }
+    const macdDir = m.bullish ? 'CALL' : 'PUT';
+    out.macdOk = dir === macdDir;
+    if (!out.macdOk) dir = null;
+    out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
+    out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
+    return out;
+  }
+
+  if (strategy === 'EMA') {
+    const emaF = calcEMA(prices, cfg.emaFast);
+    const emaS = calcEMA(prices, cfg.emaSlow);
+    const atrData = calcATRAvg(prices, cfg.atrPeriod, 50);
+    if (emaF === null || emaS === null) return out;
+    const prevPrices = prices.slice(0, -1);
+    const prevF = calcEMA(prevPrices, cfg.emaFast);
+    const prevS = calcEMA(prevPrices, cfg.emaSlow);
+    let dir = null, str = 0;
+    if (prevF !== null && prevS !== null) {
+      if (prevF <= prevS && emaF > emaS) { dir = 'CALL'; str = 85; }
+      else if (prevF >= prevS && emaF < emaS) { dir = 'PUT'; str = 85; }
+      else if (emaF > emaS) { dir = 'CALL'; str = 60; }
+      else if (emaF < emaS) { dir = 'PUT'; str = 60; }
+    }
+    out.components.ema = { dir: dir || 'NEUTRAL', score: str };
+    out.atrSpike = atrData.spike;
+    if (atrData.spike) str = Math.round(str * 0.6);
+    const macdDir = m.bullish ? 'CALL' : 'PUT';
+    out.macdOk = dir === macdDir;
+    if (!out.macdOk) dir = null;
+    out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
+    out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
+    return out;
+  }
+
+  if (strategy === 'BB') {
+    const bb = calcBB(prices, cfg.bbPeriod);
+    const stoch = calcStochRSI(prices, 14, cfg.stochPeriod, cfg.stochSmooth);
+    if (bb.pctB === null) return out;
+    let dir = null, str = 0;
+    if (bb.pctB < 5 && stoch.k !== null && stoch.k < 20) { dir = 'CALL'; str = Math.round(90 - bb.pctB * 2); }
+    else if (bb.pctB > 95 && stoch.k !== null && stoch.k > 80) { dir = 'PUT'; str = Math.round(90 - (100 - bb.pctB) * 2); }
+    else if (bb.pctB < 15) { dir = 'CALL'; str = 55; }
+    else if (bb.pctB > 85) { dir = 'PUT'; str = 55; }
+    out.components.bb = { dir: dir || 'NEUTRAL', score: str };
+    if (stoch.k !== null) out.components.stochRSI = { dir: stoch.k < 30 ? 'CALL' : stoch.k > 70 ? 'PUT' : 'NEUTRAL', score: Math.round(Math.abs(stoch.k - 50)) };
+    const macdDir = m.bullish ? 'CALL' : 'PUT';
+    out.macdOk = dir === macdDir;
+    if (!out.macdOk) dir = null;
+    out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
+    out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
+    return out;
+  }
+
+  if (strategy === 'MACD') {
+    const rsi = calcRSI(prices, cfg.rsiPeriod);
+    if (m.macd === null) return out;
+    let dir = null, str = 0;
+    if (m.crossUp) { dir = 'CALL'; str = 90; }
+    else if (m.crossDown) { dir = 'PUT'; str = 90; }
+    else if (m.bullish && m.histogram > 0) { dir = 'CALL'; str = 65; }
+    else if (!m.bullish && m.histogram < 0) { dir = 'PUT'; str = 65; }
+    out.components.macd = { dir: dir || 'NEUTRAL', score: str };
+    out.macdOk = true;
+    if (rsi !== null) {
+      if (dir === 'CALL' && rsi > cfg.rsiOB) { str = Math.round(str * 0.5); dir = null; }
+      if (dir === 'PUT' && rsi < cfg.rsiOS) { str = Math.round(str * 0.5); dir = null; }
+      out.components.rsi = { dir: rsi < 40 ? 'CALL' : rsi > 60 ? 'PUT' : 'NEUTRAL', score: Math.round(Math.abs(rsi - 50) * 2) };
+    }
+    out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
+    return out;
+  }
+
+  return out;
+};
+
+/* ================================================================
+   SECTION 4B: V50 RESEARCH STRATEGIES
+   Three strategies from the V50 Quantitative Strategy Guide.
+   EMA_STOCH: EMA(8) + Stochastic(5,3,3) trend scalper
+   SMA_RSI:   SMA(20/50) crossover + RSI pullback swing
+   BB_SQUEEZE: Bollinger Band squeeze breakout
+   ================================================================ */
+
+const computeEmaStoch = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 3, components: {}, macdOk: true, atrSpike: false };
+  if (!prices || prices.length < 40) return out;
+
+  const ema8 = calcEMA(prices, cfg.ema8Period || 8);
+  const ema21 = calcEMA(prices, cfg.ema21Period || 21);
+  const stoch = calcStochastic(prices, cfg.stochK || 5, cfg.stochD || 3, cfg.stochSlowing || 3);
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+  const close = prices[prices.length - 1];
+
+  out.atrSpike = atrData.spike;
+
+  // Component: EMA trend direction
+  if (ema8 !== null) {
+    if (close > ema8) out.components.ema = { dir: 'CALL', score: 70 };
+    else if (close < ema8) out.components.ema = { dir: 'PUT', score: 70 };
+    else out.components.ema = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Stochastic crossover
+  if (stoch.k !== null && stoch.d !== null && stoch.kPrev !== null && stoch.dPrev !== null) {
+    // Check if %K was oversold in recent bars (look at kSeries)
+    const recentK = stoch.kSeries.slice(-5);
+    const wasOversold = recentK.some(v => v < 20);
+    const wasOverbought = recentK.some(v => v > 80);
+    const crossUp = stoch.kPrev < stoch.dPrev && stoch.k > stoch.d;
+    const crossDown = stoch.kPrev > stoch.dPrev && stoch.k < stoch.d;
+
+    if (crossUp && wasOversold && stoch.kPrev <= 20 && stoch.dPrev <= 20) {
+      out.components.stoch = { dir: 'CALL', score: 90 };
+    } else if (crossDown && wasOverbought && stoch.kPrev >= 80 && stoch.dPrev >= 80) {
+      out.components.stoch = { dir: 'PUT', score: 90 };
+    } else if (crossUp && wasOversold) {
+      out.components.stoch = { dir: 'CALL', score: 65 };
+    } else if (crossDown && wasOverbought) {
+      out.components.stoch = { dir: 'PUT', score: 65 };
+    } else {
+      out.components.stoch = { dir: 'NEUTRAL', score: 0 };
+    }
+  } else {
+    out.components.stoch = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: EMA slope filter (8 EMA not flat)
+  if (ema8 !== null && prices.length > 3) {
+    const prevEma8 = calcEMA(prices.slice(0, -3), cfg.ema8Period || 8);
+    const slopeOk = prevEma8 !== null && Math.abs(ema8 - prevEma8) > (cfg.slopeThreshold || 0.5);
+    out.components.slope = { dir: slopeOk ? 'CALL' : 'NEUTRAL', score: slopeOk ? 60 : 0 };
+  }
+
+  // Determine direction: all conditions must align
+  const emaDir = out.components.ema?.dir;
+  const stochDir = out.components.stoch?.dir;
+  const slopeOk = out.components.slope?.dir !== 'NEUTRAL';
+
+  let dir = null, str = 0, votes = 0;
+
+  if (emaDir === 'CALL' && stochDir === 'CALL' && slopeOk) {
+    // Optional 21 EMA filter
+    if (ema21 !== null && ema8 !== null && ema8 < ema21) {
+      str = 50; // downgrade if against longer trend
+    } else {
+      str = out.components.stoch.score;
+    }
+    dir = 'CALL'; votes = 3;
+  } else if (emaDir === 'PUT' && stochDir === 'PUT' && slopeOk) {
+    if (ema21 !== null && ema8 !== null && ema8 > ema21) {
+      str = 50;
+    } else {
+      str = out.components.stoch.score;
+    }
+    dir = 'PUT'; votes = 3;
+  } else if (emaDir === stochDir && emaDir !== 'NEUTRAL') {
+    dir = emaDir; str = 55; votes = 2; // missing slope confirmation
+  }
+
+  if (atrData.spike) str = Math.round(str * 0.6);
+
+  out.direction = dir; out.strength = str; out.votes = votes;
+  out.macdOk = true; // No MACD gate for this strategy
+  return out;
+};
+
+const computeSmaRsi = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 3, components: {}, macdOk: true, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
+
+  const sma20 = calcSMA(prices, cfg.sma20Period || 20);
+  const sma50 = calcSMA(prices, cfg.sma50Period || 50);
+  const rsi = calcRSI(prices, cfg.rsiPeriod || 14);
+  const close = prices[prices.length - 1];
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+
+  out.atrSpike = atrData.spike;
+
+  if (sma20 === null || sma50 === null || rsi === null) return out;
+
+  // Check SMA crossover within last 10 bars
+  const sma20Series = calcSMASeries(prices, cfg.sma20Period || 20);
+  const sma50Series = calcSMASeries(prices, cfg.sma50Period || 50);
+  let recentCrossUp = false, recentCrossDown = false;
+
+  if (sma20Series.length > 0 && sma50Series.length > 0) {
+    const offset = sma20Series.length - sma50Series.length;
+    const lookback = Math.min(10, sma50Series.length - 1);
+    for (let i = 0; i < lookback; i++) {
+      const idx50 = sma50Series.length - 1 - i;
+      const idx20 = idx50 + offset;
+      const prevIdx50 = idx50 - 1;
+      const prevIdx20 = idx20 - 1;
+      if (prevIdx50 >= 0 && prevIdx20 >= 0) {
+        if (sma20Series[prevIdx20] <= sma50Series[prevIdx50] && sma20Series[idx20] > sma50Series[idx50]) recentCrossUp = true;
+        if (sma20Series[prevIdx20] >= sma50Series[prevIdx50] && sma20Series[idx20] < sma50Series[idx50]) recentCrossDown = true;
+      }
+    }
+  }
+
+  // Current relationship
+  const sma20AboveSma50 = sma20 > sma50;
+  const smaSep = Math.abs(sma20 - sma50);
+  const minSep = cfg.minSmaSep || 0.5;
+
+  // Component: SMA crossover
+  if (sma20AboveSma50 && smaSep >= minSep) {
+    out.components.sma = { dir: 'CALL', score: recentCrossUp ? 85 : 65 };
+  } else if (!sma20AboveSma50 && smaSep >= minSep) {
+    out.components.sma = { dir: 'PUT', score: recentCrossDown ? 85 : 65 };
+  } else {
+    out.components.sma = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: RSI filter
+  if (rsi > 50 && rsi < 70) {
+    out.components.rsi = { dir: 'CALL', score: Math.round((rsi - 50) * 3.5) };
+  } else if (rsi < 50 && rsi > 30) {
+    out.components.rsi = { dir: 'PUT', score: Math.round((50 - rsi) * 3.5) };
+  } else {
+    out.components.rsi = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Pullback to 20 SMA
+  const distToSma20 = Math.abs(close - sma20);
+  const pullbackThreshold = cfg.pullbackThreshold || 2;
+  const isPullback = distToSma20 <= pullbackThreshold;
+
+  if (sma20AboveSma50 && isPullback && close >= sma20) {
+    out.components.pullback = { dir: 'CALL', score: 80 };
+  } else if (!sma20AboveSma50 && isPullback && close <= sma20) {
+    out.components.pullback = { dir: 'PUT', score: 80 };
+  } else {
+    out.components.pullback = { dir: 'NEUTRAL', score: isPullback ? 30 : 0 };
+  }
+
+  // Aggregate: need SMA + RSI alignment + pullback
+  const smaDir = out.components.sma.dir;
+  const rsiDir = out.components.rsi.dir;
+  const pbDir = out.components.pullback.dir;
+
+  let dir = null, str = 0, votes = 0;
+
+  if (smaDir === 'CALL' && rsiDir === 'CALL' && pbDir === 'CALL') {
+    dir = 'CALL'; str = Math.round((out.components.sma.score + out.components.rsi.score + out.components.pullback.score) / 3); votes = 3;
+  } else if (smaDir === 'PUT' && rsiDir === 'PUT' && pbDir === 'PUT') {
+    dir = 'PUT'; str = Math.round((out.components.sma.score + out.components.rsi.score + out.components.pullback.score) / 3); votes = 3;
+  } else if (smaDir === rsiDir && smaDir !== 'NEUTRAL') {
+    dir = smaDir; str = Math.round((out.components.sma.score + out.components.rsi.score) / 2 * 0.7); votes = 2;
+  }
+
+  if (atrData.spike) str = Math.round(str * 0.6);
+
+  out.direction = dir; out.strength = str; out.votes = votes;
+  out.macdOk = true;
+  return out;
+};
+
+const computeBbSqueeze = (prices, cfg) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 4, components: {}, macdOk: false, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
+
+  const bbPeriod = cfg.bbPeriod || 20;
+  const bbMult = cfg.bbMult || 2.0;
+  const kcPeriod = cfg.kcPeriod || 20;
+  const kcAtrMulti = cfg.kcAtrMulti || 1.5;
+  const kcAtrPeriod = cfg.kcAtrPeriod || 14;
+  const minSqueezeBars = cfg.minSqueezeBars || 3;
+
+  const bb = calcBB(prices, bbPeriod);
+  const kc = calcKeltnerChannels(prices, kcPeriod, kcAtrMulti, kcAtrPeriod);
+  const m = calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
+  const rsi = calcRSI(prices, cfg.rsiPeriod || 14);
+  const atr = calcATR(prices, cfg.atrPeriod || 14);
+  const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
+  const close = prices[prices.length - 1];
+
+  out.atrSpike = atrData.spike;
+
+  if (!bb.upper || !kc.upper) return out;
+
+  // Check for prior squeeze
+  // Use the previous bar's data to see if squeeze was active BEFORE current bar
+  const prevPrices = prices.slice(0, -1);
+  const squeezeBars = countSqueezeBars(prevPrices, bbPeriod, bbMult, kcPeriod, kcAtrMulti, kcAtrPeriod);
+  const squeezeWasActive = squeezeBars >= minSqueezeBars;
+
+  // Current bar: squeeze fired? (BB expanded beyond KC)
+  const bbAboveKc = bb.upper > kc.upper;
+  const bbBelowKc = bb.lower < kc.lower;
+  const squeezeFiredUp = squeezeWasActive && bbAboveKc;
+  const squeezeFiredDown = squeezeWasActive && bbBelowKc;
+
+  // Component: Squeeze state
+  if (squeezeFiredUp) {
+    out.components.squeeze = { dir: 'CALL', score: 85 };
+  } else if (squeezeFiredDown) {
+    out.components.squeeze = { dir: 'PUT', score: 85 };
+  } else if (squeezeWasActive) {
+    out.components.squeeze = { dir: 'NEUTRAL', score: 40 }; // squeeze still active, waiting
+  } else {
+    out.components.squeeze = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: Price breakout beyond BB
+  if (close > bb.upper) {
+    out.components.bb = { dir: 'CALL', score: 80 };
+  } else if (close < bb.lower) {
+    out.components.bb = { dir: 'PUT', score: 80 };
+  } else {
+    out.components.bb = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  // Component: MACD/RSI momentum confirmation
+  if (m.histogram !== null) {
+    if (m.histogram > 0) out.components.macd = { dir: 'CALL', score: 70 };
+    else if (m.histogram < 0) out.components.macd = { dir: 'PUT', score: 70 };
+    else out.components.macd = { dir: 'NEUTRAL', score: 0 };
+  } else {
+    out.components.macd = { dir: 'NEUTRAL', score: 0 };
+  }
+
+  if (rsi !== null) {
+    if (rsi > 50) out.components.rsi = { dir: 'CALL', score: Math.round((rsi - 50) * 2) };
+    else out.components.rsi = { dir: 'PUT', score: Math.round((50 - rsi) * 2) };
+  }
+
+  // Aggregate: squeeze fired + price breakout + momentum confirm
+  const sqDir = out.components.squeeze.dir;
+  const bbDir = out.components.bb.dir;
+  const macdDir = out.components.macd.dir;
+
+  let dir = null, str = 0, votes = 0;
+
+  if (sqDir === 'CALL' && bbDir === 'CALL' && macdDir === 'CALL') {
+    dir = 'CALL'; str = Math.round((out.components.squeeze.score + out.components.bb.score + out.components.macd.score) / 3); votes = 3;
+    if (rsi !== null && rsi > 50) { votes = 4; str = Math.min(100, str + 5); }
+  } else if (sqDir === 'PUT' && bbDir === 'PUT' && macdDir === 'PUT') {
+    dir = 'PUT'; str = Math.round((out.components.squeeze.score + out.components.bb.score + out.components.macd.score) / 3); votes = 3;
+    if (rsi !== null && rsi < 50) { votes = 4; str = Math.min(100, str + 5); }
+  } else if (sqDir === bbDir && sqDir !== 'NEUTRAL') {
+    dir = sqDir; str = Math.round((out.components.squeeze.score + out.components.bb.score) / 2 * 0.7); votes = 2;
+  }
+
+  out.macdOk = dir ? (macdDir === dir) : false;
+  out.direction = dir; out.strength = str; out.votes = votes;
+  return out;
+};
+
+/* ================================================================
+   SECTION 4C: MARSBOT PRO V50 — LOCKED AI STRATEGY ENGINE
+   🔒 Config is frozen. Parameters cannot be modified externally.
+   Uses adaptive RSI thresholds + EMA trend + support/resistance zones.
+   ================================================================ */
+
+function _mbpEMA(prices, period) {
+  if (!prices || prices.length < period || period < 1) return null;
+  const k = 2 / (period + 1);
+  let ema = 0;
+  for (let i = 0; i < period; i++) ema += prices[i];
+  ema /= period;
+  for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+  return isFinite(ema) ? ema : null;
 }
 
-function ATR(data, period) {
-  // BUG FIX #3: data.high/data.low might not exist (Deriv tick stream is close-only)
-  if (!data || !data.high || !data.low) return null;
-  if (data.high.length < period) return null;
+function _mbpRSI(prices, period) {
+  if (!prices || prices.length < period + 1 || period < 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = prices[i] - prices[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  for (let i = period + 1; i < prices.length; i++) {
+    const d = prices[i] - prices[i - 1];
+    avgGain = (avgGain * (period - 1) + (d > 0 ? d : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (d < 0 ? -d : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  const rsi = 100 - 100 / (1 + avgGain / avgLoss);
+  return isFinite(rsi) ? rsi : null;
+}
+
+function _mbpATR(prices, period) {
+  if (!prices || prices.length < period + 1 || period < 1) return null;
   let total = 0;
-  for (let i = data.high.length - period; i < data.high.length; i++) {
-    total += Math.abs(data.high[i] - data.low[i]);
+  for (let i = prices.length - period; i < prices.length; i++) {
+    total += Math.abs(prices[i] - prices[i - 1]);
+  }
+  const atr = total / period;
+  return isFinite(atr) ? atr : null;
+}
+
+function _mbpAvgRange(prices, period) {
+  if (!prices || prices.length < period || period < 1) return null;
+  let total = 0;
+  for (let i = prices.length - period; i < prices.length; i++) {
+    total += Math.abs(prices[i] - prices[i - 1]);
   }
   return total / period;
 }
 
-// =============================
-// 🧩 HELPERS
-// =============================
-function averageCandleSize(data, period) {
-  // BUG FIX #3: same null guard as ATR
-  if (!data || !data.high || !data.low || data.high.length < period) return null;
-  let total = 0;
-  for (let i = data.high.length - period; i < data.high.length; i++) {
-    total += Math.abs(data.high[i] - data.low[i]);
-  }
-  return total / period;
-}
-
-function near(price, level, tolerance = 0.002) {
-  if (!price) return false; // BUG FIX #4: guard against divide-by-zero
+function _mbpNear(price, level, tolerance) {
+  if (!price || !level) return false;
   return Math.abs(price - level) / price < tolerance;
 }
 
-function getZones(prices, lookback) {
-  // BUG FIX #5: avoid spread operator stack overflow on large arrays
-  if (!prices || prices.length === 0) return { support: 0, resistance: 0 };
+function _mbpZones(prices, lookback) {
   const slice = prices.slice(-lookback);
-  let min = slice[0], max = slice[0];
-  for (let i = 1; i < slice.length; i++) {
-    if (slice[i] < min) min = slice[i];
-    if (slice[i] > max) max = slice[i];
-  }
-  return { support: min, resistance: max };
+  return {
+    support: Math.min(...slice),
+    resistance: Math.max(...slice),
+  };
 }
 
-// =============================
-// 🤖 MARSBOT PRO AI STRATEGY
-// =============================
-function runMarsBotPro(data) {
-  if (!data || !data.close || data.close.length < 50) return { signal: null, confidence: 0, expiry: MARSBOT_PRO_CONFIG.expiryCandles }; // BUG FIX #6
+const computeMarsBotPro = (prices) => {
+  const out = { direction: null, strength: 0, votes: 0, total: 4, components: {}, macdOk: true, atrSpike: false };
+  if (!prices || prices.length < 60) return out;
 
-  const price = data.close[data.close.length - 1];
+  const price  = prices[prices.length - 1];
+  const ema10  = _mbpEMA(prices, 10);
+  const ema50  = _mbpEMA(prices, 50);
+  const rsi    = _mbpRSI(prices, 14);
+  const atr    = _mbpATR(prices, 14);
+  const avgRange = _mbpAvgRange(prices, 20);
 
-  const ema10 = EMA(data.close, 10);
-  const ema50 = EMA(data.close, 50);
-  const rsi   = RSI(data.close, 14);
-  const atr   = ATR(data, 14);           // Will return null if no OHLC — handled below
-  const avgRange = averageCandleSize(data, 20); // Same
+  if (ema10 === null || ema50 === null || rsi === null || atr === null || avgRange === null) return out;
 
-  // BUG FIX #7: volatility check must handle null ATR/avgRange gracefully
-  const volatilityOK = (atr !== null && avgRange !== null) ? atr > avgRange * 0.8 : true;
-
-  if (ema10 === null || ema50 === null || rsi === null) {
-    return { signal: null, confidence: 0, expiry: MARSBOT_PRO_CONFIG.expiryCandles };
-  }
+  const volatilityOK = atr > avgRange * 0.8;
+  out.atrSpike = atr > avgRange * 1.5;
 
   const uptrend   = price > ema50 && ema10 > ema50;
   const downtrend = price < ema50 && ema10 < ema50;
 
-  // 🧠 Adaptive RSI thresholds
+  // 🧠 Adaptive RSI thresholds from AI_STATE
   const baseOversold   = 35 + AI_STATE.rsiOffset;
   const baseOverbought = 65 - AI_STATE.rsiOffset;
 
-  const { support, resistance } = getZones(data.close, 20);
+  const { support, resistance } = _mbpZones(prices, 20);
 
   let signal = null;
   let confidence = 0;
 
-  if (uptrend && rsi < baseOversold && near(price, support) && volatilityOK) {
+  // Component breakdown
+  out.components.ema    = { dir: uptrend ? 'CALL' : downtrend ? 'PUT' : 'NEUTRAL', score: uptrend || downtrend ? 70 : 0 };
+  out.components.rsi    = { dir: rsi < baseOversold ? 'CALL' : rsi > baseOverbought ? 'PUT' : 'NEUTRAL', score: rsi < baseOversold ? Math.round((baseOversold - rsi) / baseOversold * 100) : rsi > baseOverbought ? Math.round((rsi - baseOverbought) / (100 - baseOverbought) * 100) : 0 };
+  out.components.zone   = { dir: _mbpNear(price, support, 0.002) ? 'CALL' : _mbpNear(price, resistance, 0.002) ? 'PUT' : 'NEUTRAL', score: (_mbpNear(price, support, 0.002) || _mbpNear(price, resistance, 0.002)) ? 80 : 0 };
+  out.components.vol    = { dir: volatilityOK ? 'CALL' : 'NEUTRAL', score: volatilityOK ? 60 : 0 };
+
+  if (uptrend && rsi < baseOversold && _mbpNear(price, support, 0.002) && volatilityOK) {
     confidence = 75;
-    signal = "BUY";
+    signal = 'CALL';
+  }
+  if (downtrend && rsi > baseOverbought && _mbpNear(price, resistance, 0.002) && volatilityOK) {
+    confidence = 75;
+    signal = 'PUT';
   }
 
-  if (downtrend && rsi > baseOverbought && near(price, resistance) && volatilityOK) {
-    confidence = 75;
-    signal = "SELL";
-  }
-
-  // 🧠 Adaptive confidence threshold
+  // 🧠 Adaptive confidence threshold from AI_STATE
   const requiredConfidence = MARSBOT_PRO_CONFIG.minConfidence + AI_STATE.confidenceOffset;
 
-  if (confidence < requiredConfidence) {
-    signal = null;
-  }
+  if (confidence < requiredConfidence) signal = null;
 
-  return {
-    signal,
-    confidence,
-    expiry: MARSBOT_PRO_CONFIG.expiryCandles
-  };
-}
+  out.direction = signal;
+  out.strength  = signal ? confidence : 0;
+  out.votes     = signal ? 4 : 0;
+  return out;
+};
 
-// =============================
-// ⚙️ STRATEGY SWITCH
-// =============================
-function runStrategy(strategy, data) {
-  if (strategy === STRATEGIES.MARSBOT_PRO_V50) {
-    return runMarsBotPro(data);
-  }
-  // BUG FIX #8: DEFAULT strategy returned null with no warning — now logs clearly
-  console.warn("[MarsBot] runStrategy called with unrecognized strategy:", strategy);
-  return null;
-}
+const getSignal = (strategy, prices, symbol, isAuto) => {
+  // 🔒 MARSBOT PRO V50: locked strategy, bypasses all external config
+  if (strategy === MARSBOT_PRO_ID) return computeMarsBotPro(prices);
+  const cfg = getConfig(symbol, strategy);
+  if (strategy === 'HYBRID') return computeHybrid(prices, cfg, isAuto);
+  if (strategy === 'EMA_STOCH') return computeEmaStoch(prices, cfg);
+  if (strategy === 'SMA_RSI') return computeSmaRsi(prices, cfg);
+  if (strategy === 'BB_SQUEEZE') return computeBbSqueeze(prices, cfg);
+  return computeSingle(strategy, prices, cfg, isAuto);
+};
 
-// =============================
-// 🎛️ UI LOCK
-// =============================
-function lockUIIfNeeded(selectedStrategy) {
-  // BUG FIX #9: strategySelector element doesn't exist in this HTML.
-  // Guard added so this doesn't throw on missing element.
-  const selectorEl = document.getElementById("strategySelector");
-  if (selectedStrategy === STRATEGIES.MARSBOT_PRO_V50) {
-    document.querySelectorAll("input, select").forEach(el => {
-      if (selectorEl && el === selectorEl) return;
-      el.disabled = true;
+/* ================================================================
+   SECTION 5: BACKTEST ENGINE
+   ================================================================ */
+
+const runBacktest = (prices, strategy, symbol, isAuto = true) => {
+  const results = { trades: [], wins: 0, losses: 0, totalPnL: 0, maxDrawdown: 0, maxStreak: 0, maxLossStreak: 0, callCount: 0, putCount: 0, rollingWR: [] };
+  if (!prices || prices.length < 80) return results;
+
+  let equity = 0, peak = 0, streak = 0, lossStreak = 0;
+
+  for (let i = 60; i < prices.length - 1; i++) {
+    const slice = prices.slice(0, i + 1);
+    const signal = getSignal(strategy, slice, symbol, isAuto);
+    if (!signal.direction) continue;
+
+    const entry = prices[i];
+    const exit = prices[i + 1];
+    const won = signal.direction === 'CALL' ? exit > entry : exit < entry;
+    const pnl = won ? 0.85 : -1;
+
+    if (signal.direction === 'CALL') results.callCount++;
+    else results.putCount++;
+
+    results.trades.push({
+      idx: i,
+      direction: signal.direction,
+      strength: signal.strength,
+      strategy,
+      entry,
+      exit,
+      won,
+      pnl,
     });
+
+    if (won) { results.wins++; streak++; lossStreak = 0; }
+    else { results.losses++; lossStreak++; streak = 0; }
+    results.maxStreak = Math.max(results.maxStreak, streak);
+    results.maxLossStreak = Math.max(results.maxLossStreak, lossStreak);
+    results.totalPnL += pnl;
+    equity += pnl;
+    peak = Math.max(peak, equity);
+    const dd = peak - equity;
+    results.maxDrawdown = Math.max(results.maxDrawdown, dd);
+
+    const recentTrades = results.trades.slice(-20);
+    const recentWins = recentTrades.filter(t => t.won).length;
+    results.rollingWR.push(Math.round((recentWins / recentTrades.length) * 100));
   }
-}
 
-// =============================
-// 📈 RESULT FEEDBACK
-// =============================
-function onTradeResult(result) {
-  // BUG FIX #10: invalid result values silently corrupted AI_STATE
-  if (result !== "win" && result !== "loss") {
-    console.warn("[MarsBot] onTradeResult: invalid result value:", result, '— must be "win" or "loss"');
-    return;
+  return results;
+};
+
+/* ================================================================
+   SECTION 6: SOUND ENGINE
+   ================================================================ */
+
+let audioCtx = null;
+const getAudioCtx = () => {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+};
+
+const playTone = (freq, dur, type = 'sine') => {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  } catch (e) { /* ignore audio errors */ }
+};
+
+const sounds = {
+  signal: () => playTone(880, 0.15),
+  win: () => { playTone(660, 0.12); setTimeout(() => playTone(880, 0.15), 130); },
+  loss: () => playTone(220, 0.4, 'square'),
+};
+
+/* ================================================================
+   SECTION 7: CSV EXPORT
+   ================================================================ */
+
+const exportCSV = (trades) => {
+  const headers = ['Time', 'Symbol', 'Direction', 'UI Label', 'Strategy', 'Stake', 'Result', 'P&L', 'Strength', 'MACD Gate'];
+  const rows = trades.map(t => [
+    t.time || '', t.symbol || '', t.direction || '', dirLabel(t.direction),
+    t.strategy || '', t.stake || '', t.won ? 'WIN' : 'LOSS',
+    typeof t.profit === 'number' ? t.profit.toFixed(2) : '',
+    t.strength || '', t.macdOk ? 'YES' : 'NO',
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `marsbot_trades_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+/* ================================================================
+   SECTION 8: TRADE PERSISTENCE (FIX #2)
+   Trades are stored in localStorage with dedup by contract_id.
+   ================================================================ */
+
+const loadStoredTrades = () => {
+  try {
+    const raw = localStorage.getItem(TRADE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
+const saveStoredTrades = (trades) => {
+  try {
+    const trimmed = trades.slice(0, MAX_STORED_TRADES);
+    localStorage.setItem(TRADE_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch { /* quota exceeded — silently fail */ }
+};
+
+const addTradeDeduped = (existing, newTrade) => {
+  // Dedup by contract_id
+  if (newTrade.id && existing.some(t => t.id === newTrade.id)) {
+    return existing; // already recorded
   }
-  updateAI(result);
-}
+  const updated = [newTrade, ...existing].slice(0, MAX_STORED_TRADES);
+  saveStoredTrades(updated);
+  return updated;
+};
 
-// =============================
-// 🖥️ UI STATUS RENDER
-// =============================
-function renderAIStatus() {
-  const el = document.getElementById("ai-display");
-  if (!el) return;
-  const total = AI_STATE.wins + AI_STATE.losses;
-  const wr = total ? ((AI_STATE.wins / total) * 100).toFixed(1) : "—";
-  el.innerHTML = `
-    <div>Wins: <span style="color:var(--primary)">${AI_STATE.wins}</span> &nbsp; Losses: <span style="color:var(--danger)">${AI_STATE.losses}</span> &nbsp; Win Rate: <span style="color:var(--warning)">${wr}%</span></div>
-    <div>RSI Offset: <span style="color:var(--primary)">${AI_STATE.rsiOffset > 0 ? '+' : ''}${AI_STATE.rsiOffset}</span> &nbsp; Confidence Offset: <span style="color:var(--primary)">${AI_STATE.confidenceOffset > 0 ? '+' : ''}${AI_STATE.confidenceOffset}</span></div>
-    <div style="margin-top:6px;color:var(--muted);font-size:11px;">Effective RSI oversold: ${35 + AI_STATE.rsiOffset} &nbsp;|&nbsp; Effective RSI overbought: ${65 - AI_STATE.rsiOffset}</div>
-    <div style="color:var(--muted);font-size:11px;">Required confidence: ${MARSBOT_PRO_CONFIG.minConfidence + AI_STATE.confidenceOffset}%</div>
-  `;
-}
+/* ================================================================
+   SECTION 9: UI COMPONENTS
+   FIX #1: All tab components are defined OUTSIDE the App component
+   so React maintains stable references across re-renders.
+   Collapsible state is preserved because components never unmount.
+   ================================================================ */
 
-function resetAI() {
-  AI_STATE.wins = 0;
-  AI_STATE.losses = 0;
-  AI_STATE.rsiOffset = 0;
-  AI_STATE.confidenceOffset = 0;
-  saveAI();
-  renderAIStatus();
-}
+// SVG Icons
+const Icons = {
+  signal: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>,
+  trades: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+  backtest: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
+  settings: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  logs: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>,
+  chevron: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>,
+};
 
-// Init display on load
-document.addEventListener("DOMContentLoaded", renderAIStatus);
+// Toggle Component
+const Toggle = ({ value, onChange, label }) => (
+  <div className="toggle-wrap">
+    <span className="fs-13">{label}</span>
+    <div className={`toggle-track ${value ? 'on' : ''}`} onClick={() => onChange(!value)}>
+      <div className="toggle-thumb" />
+    </div>
+  </div>
+);
 
+// Collapsible Section
+const Collapsible = ({ title, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderBottom: '1px solid var(--card-border)', paddingBottom: 4 }}>
+      <div className="collapsible-header" onClick={() => setOpen(!open)}>
+        <h3>{title}</h3>
+        <span className={`collapsible-chevron ${open ? 'open' : ''}`}><Icons.chevron /></span>
+      </div>
+      {open && <div style={{ paddingBottom: 8 }}>{children}</div>}
+    </div>
+  );
+};
+
+// Sparkline Component
+const Sparkline = ({ data, width = 280, height = 50, color = 'var(--primary)' }) => {
+  if (!data || data.length < 2) return <svg width={width} height={height} />;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const step = width / (data.length - 1);
+  const points = data.map((v, i) => `${i * step},${height - ((v - min) / range) * (height - 4) - 2}`).join(' ');
+  return (
+    <svg width={width} height={height} style={{ display: 'block', width: '100%', height: height }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx={(data.length - 1) * step} cy={height - ((data[data.length - 1] - min) / range) * (height - 4) - 2} r="3" fill={color} />
+    </svg>
+  );
+};
+
+// WR Sparkline
+const WRSparkline = ({ data, width = 280, height = 40 }) => {
+  if (!data || data.length < 2) return null;
+  const step = width / (data.length - 1);
+  const points = data.map((v, i) => `${i * step},${height - (v / 100) * (height - 4) - 2}`).join(' ');
+  const fiftyY = height - (50 / 100) * (height - 4) - 2;
+  return (
+    <svg width={width} height={height} style={{ display: 'block', width: '100%', height: height }}>
+      <line x1="0" y1={fiftyY} x2={width} y2={fiftyY} stroke="var(--muted)" strokeWidth="0.5" strokeDasharray="4 4" />
+      <polyline points={points} fill="none" stroke="var(--warning)" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+// Strength Gauge — FIX #8: shows Up/Down instead of CALL/PUT
+const StrengthGauge = ({ strength = 0, direction }) => {
+  const r = 60;
+  const cx = 80;
+  const cy = 75;
+  const startAngle = Math.PI;
+  const sweep = Math.PI;
+  const pct = Math.max(0, Math.min(100, strength)) / 100;
+
+  const arcPath = (start, end, radius) => {
+    const x1 = cx + radius * Math.cos(start);
+    const y1 = cy + radius * Math.sin(start);
+    const x2 = cx + radius * Math.cos(end);
+    const y2 = cy + radius * Math.sin(end);
+    const largeArc = end - start > Math.PI ? 1 : 0;
+    return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
+  };
+
+  const color = direction === 'CALL' ? 'var(--primary)' : direction === 'PUT' ? 'var(--danger)' : 'var(--muted)';
+  const label = direction ? dirLabel(direction) : 'WAITING';
+
+  return (
+    <div className="gauge-container">
+      <svg width="160" height="100" viewBox="0 0 160 100">
+        <path d={arcPath(startAngle, 0, r)} fill="none" stroke="var(--surface)" strokeWidth="10" strokeLinecap="round" />
+        {pct > 0 && <path d={arcPath(startAngle, startAngle + sweep * pct, r)} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />}
+        <text x={cx} y={cy - 8} textAnchor="middle" fill={color} fontSize="28" fontWeight="700" fontFamily="'JetBrains Mono', monospace">{strength}%</text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--muted)" fontSize="10" fontWeight="600">{label}</text>
+      </svg>
+    </div>
+  );
+};
+
+// Indicator Pill — FIX #8: shows Up/Down
+const IndicatorPill = ({ name, data }) => {
+  if (!data) return <span className="pill pill-neutral">{name} —</span>;
+  const cls = data.dir === 'CALL' ? 'pill-up' : data.dir === 'PUT' ? 'pill-down' : 'pill-neutral';
+  const arrow = data.dir === 'CALL' ? '↑' : data.dir === 'PUT' ? '↓' : '—';
+  const label = data.dir === 'CALL' ? 'Up' : data.dir === 'PUT' ? 'Down' : '—';
+  return <span className={`pill ${cls}`}>{name} {arrow} {data.score}</span>;
+};
+
+/* ================================================================
+   FIX #5: Contract Countdown Timer Component
+   Uses Deriv's start_time and expiry_time epochs.
+   ================================================================ */
+const ContractCountdown = ({ expiryTime }) => {
+  const [remaining, setRemaining] = useState('');
+
+  useEffect(() => {
+    if (!expiryTime) { setRemaining(''); return; }
+    const update = () => {
+      const now = Date.now() / 1000;
+      const diff = expiryTime - now;
+      if (diff <= 0) {
+        setRemaining('Expiring...');
+        return;
+      }
+      const mins = Math.floor(diff / 60);
+      const secs = Math.floor(diff % 60);
+      if (mins > 0) {
+        setRemaining(`${mins}:${secs.toString().padStart(2, '0')}`);
+      } else {
+        setRemaining(`${secs}s`);
+      }
+    };
+    update();
+    const iv = setInterval(update, 250);
+    return () => clearInterval(iv);
+  }, [expiryTime]);
+
+  if (!remaining) return null;
+  return <div className="contract-countdown">{remaining}</div>;
+};
+
+
+/* ================================================================
+   FIX #1: TAB COMPONENTS DEFINED OUTSIDE APP
+   Each receives props from App. This prevents React from
+   creating new component function references on every render,
+   so Collapsible open states (useState) survive re-renders.
+   ================================================================ */
+
+const SignalTab = ({
+  cooldownRemain, sessionStopped, profitTarget, sessionPnL, lossLimit, maxTrades, sessionTrades,
+  resetSession, signal, strategy, autoMode, running, connStatus, currentStake,
+  toggleRunning, manualTrade, sessionWinRate, sessionWins, maxWinStreak, priceSpark, prices, symbol,
+  openContract, isBuying
+}) => (
+  <div>
+    {cooldownRemain > 0 && (
+      <div className="cooldown-bar">
+        <div className="cd-label">⏸ Cooldown Active</div>
+        <div className="cd-time">{cooldownRemain}s</div>
+      </div>
+    )}
+
+    {sessionStopped && (
+      <div className="card" style={{ borderColor: 'var(--warning)', textAlign: 'center' }}>
+        <div style={{ color: 'var(--warning)', fontWeight: 700, marginBottom: 6 }}>SESSION STOPPED</div>
+        <div className="fs-12 text-muted">
+          {parseFloat(profitTarget) && sessionPnL >= parseFloat(profitTarget) ? 'Profit target reached' :
+           parseFloat(lossLimit) && sessionPnL <= -Math.abs(parseFloat(lossLimit)) ? 'Loss limit reached' :
+           parseInt(maxTrades) && sessionTrades >= parseInt(maxTrades) ? 'Max trades reached' : 'Stopped'}
+        </div>
+        <button className="btn btn-outline btn-sm mt-8" onClick={resetSession}>Reset Session</button>
+      </div>
+    )}
+
+    {/* Gauge */}
+    <div className="card text-center">
+      <StrengthGauge strength={signal.strength} direction={signal.direction} />
+      {signal.direction && (
+        <div style={{ marginTop: 8 }}>
+          <span className={`dir-badge ${dirClass(signal.direction)}`}>
+            {dirArrow(signal.direction)} {dirLabel(signal.direction)}
+          </span>
+        </div>
+      )}
+      <div className="fs-11 text-muted mt-8">
+        {STRATEGY_LABELS[strategy] || strategy} | Votes: {signal.votes}/{signal.total}
+        {(strategy !== 'EMA_STOCH' && strategy !== 'SMA_RSI') && <span> | MACD Gate: <span style={{ color: signal.macdOk ? 'var(--primary)' : 'var(--danger)' }}>{signal.macdOk ? 'PASS' : 'FAIL'}</span></span>}
+        {signal.atrSpike && <span className="text-warning"> | ATR SPIKE</span>}
+      </div>
+    </div>
+
+    {/* Component Pills — dynamically renders whatever indicators the active strategy produces */}
+    <div className="card">
+      <div className="card-title">Indicator Breakdown</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {Object.entries(signal.components || {}).map(([key, data]) => (
+          <IndicatorPill key={key} name={{
+            rsi: 'RSI', stochRSI: 'StochRSI', bb: 'BB', ema: 'EMA', macd: 'MACD',
+            stoch: 'Stoch', slope: 'Slope', sma: 'SMA', pullback: 'Pullback', squeeze: 'Squeeze'
+          }[key] || key.toUpperCase()} data={data} />
+        ))}
+      </div>
+    </div>
+
+    {/* Open Contract — FIX #5: shows countdown, start/expiry times */}
+    {openContract && (
+      <div className="card" style={{ borderColor: openContract.currentPnL >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+        <div className="card-title">Open Contract</div>
+        <div className="flex-between">
+          <span className="mono fs-13">{dirArrow(openContract.type)} {dirLabel(openContract.type)}</span>
+          <span className={`mono fs-13 fw-600 ${openContract.currentPnL >= 0 ? 'text-primary' : 'text-danger'}`}>
+            {openContract.currentPnL >= 0 ? '+' : ''}${openContract.currentPnL.toFixed(2)}
+          </span>
+        </div>
+        <ContractCountdown expiryTime={openContract.expiryTime} />
+        <div className="fs-11 text-muted mt-8">
+          Entry: {openContract.entrySpot} | Current: {openContract.currentSpot} | Buy: ${openContract.buyPrice?.toFixed(2)}
+          {openContract.startTime && <span> | Start: {new Date(openContract.startTime * 1000).toLocaleTimeString('en-US', { hour12: false })}</span>}
+        </div>
+      </div>
+    )}
+
+    {/* Sparkline */}
+    <div className="card">
+      <div className="card-title">Price ({symbol}) — {prices.length} ticks</div>
+      <Sparkline data={priceSpark} height={60} />
+      {prices.length > 0 && (
+        <div className="mono fs-13 text-center mt-8" style={{ color: 'var(--text-bright)' }}>
+          {prices[prices.length - 1]?.toFixed(symbol.includes('R_10') ? 3 : 2)}
+        </div>
+      )}
+    </div>
+
+    {/* Action */}
+    <div className="card">
+      <div className="flex-between mb-8">
+        <div>
+          <span className="fs-11 text-muted">{autoMode ? 'AUTO' : 'MANUAL'} Mode</span>
+          <span className="mono fs-12" style={{ marginLeft: 8, color: running ? 'var(--primary)' : 'var(--danger)' }}>
+            {running ? '● RUNNING' : '○ STOPPED'}
+          </span>
+        </div>
+        <span className="mono fs-12">Stake: ${currentStake.toFixed(2)}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className={`btn ${running ? 'btn-danger' : 'btn-primary'}`} style={{ flex: 1 }} onClick={toggleRunning} disabled={connStatus !== 'connected'}>
+          {running ? 'Stop' : 'Start'}
+        </button>
+      </div>
+
+      {/* FIX #8: Manual buttons show Up/Down, but send CALL/PUT internally */}
+      {!autoMode && running && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="btn btn-primary" style={{ flex: 1, background: 'var(--primary)' }} onClick={() => manualTrade('CALL')} disabled={connStatus !== 'connected' || isBuying}>
+            ▲ Up
+          </button>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => manualTrade('PUT')} disabled={connStatus !== 'connected' || isBuying}>
+            ▼ Down
+          </button>
+        </div>
+      )}
+    </div>
+
+    {/* Session Summary */}
+    <div className="stats-grid">
+      <div className="stat-box">
+        <div className="stat-label">Net P&L</div>
+        <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Win Rate</div>
+        <div className="stat-value">{sessionWinRate}%</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Trades</div>
+        <div className="stat-value">{sessionTrades}</div>
+      </div>
+      <div className="stat-box">
+        <div className="stat-label">Best Streak</div>
+        <div className="stat-value text-primary">{maxWinStreak}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const TradesTab = ({
+  openContract, sessionTrades, sessionWinRate, sessionPnL, sessionWins,
+  bestTrade, worstTrade, resetSession, trades, addLog, symbol
+}) => (
+  <div>
+    {/* Open Contract — FIX #5 */}
+    {openContract && (
+      <div className="card" style={{ borderColor: openContract.currentPnL >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
+        <div className="card-title">Open Contract</div>
+        <div className="flex-between">
+          <span className="mono fs-13">{dirArrow(openContract.type)} {dirLabel(openContract.type)}</span>
+          <span className={`mono fs-13 fw-600 ${openContract.currentPnL >= 0 ? 'text-primary' : 'text-danger'}`}>
+            {openContract.currentPnL >= 0 ? '+' : ''}${openContract.currentPnL.toFixed(2)}
+          </span>
+        </div>
+        <ContractCountdown expiryTime={openContract.expiryTime} />
+        <div className="fs-11 text-muted mt-8">
+          Entry: {openContract.entrySpot} | Current: {openContract.currentSpot} | Buy: ${openContract.buyPrice?.toFixed(2)}
+        </div>
+      </div>
+    )}
+
+    <div className="card">
+      <div className="card-title">Session Summary</div>
+      <div className="stats-grid">
+        <div className="stat-box">
+          <div className="stat-label">Total Trades</div>
+          <div className="stat-value">{sessionTrades}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Win Rate</div>
+          <div className="stat-value">{sessionWinRate}%</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Net P&L</div>
+          <div className={`stat-value ${sessionPnL >= 0 ? 'text-primary' : 'text-danger'}`}>${sessionPnL.toFixed(2)}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Wins / Losses</div>
+          <div className="stat-value"><span className="text-primary">{sessionWins}</span> / <span className="text-danger">{sessionTrades - sessionWins}</span></div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Best Trade</div>
+          <div className="stat-value text-primary">${bestTrade.toFixed(2)}</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-label">Worst Trade</div>
+          <div className="stat-value text-danger">${worstTrade.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={resetSession}>Reset Session</button>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => trades.length > 0 ? exportCSV(trades) : addLog('No trades to export', 'warn')} disabled={trades.length === 0}>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    {/* Trade History — FIX #2: persistent, deduped. FIX #8: Up/Down labels */}
+    <div className="card">
+      <div className="card-title">Trade History ({trades.length})</div>
+      {trades.length === 0 ? (
+        <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No trades yet</div>
+      ) : (
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {trades.map((t, i) => (
+            <div key={t.id || `trade-${i}`} className="trade-row">
+              <div className="trade-info">
+                <span className={`trade-dir ${t.won ? 'text-primary' : 'text-danger'}`}>
+                  {dirArrow(t.direction)} {dirLabel(t.direction)} — {t.symbol}
+                </span>
+                <span className="trade-time">{t.time} | {t.strategy} | ${t.stake?.toFixed(2)}</span>
+              </div>
+              <span className={`trade-pnl ${t.won ? 'win' : 'loss'}`}>
+                {t.won ? '+' : ''}{t.profit?.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const BacktestTab = ({ backtestResult, strategy, symbol, prices, doBacktest, btRunning }) => {
+  const r = backtestResult;
+  const totalTrades = r ? r.wins + r.losses : 0;
+  const wr = totalTrades > 0 ? Math.round((r.wins / totalTrades) * 100) : 0;
+  const profitFactor = r && r.losses > 0 ? Math.abs((r.wins * 0.85) / (r.losses * 1)).toFixed(2) : '∞';
+  const avgPnL = totalTrades > 0 ? (r.totalPnL / totalTrades).toFixed(3) : '0';
+  let sharpe = '—';
+  if (r && r.trades.length > 1) {
+    const returns = r.trades.map(t => t.pnl);
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length);
+    if (std > 0) sharpe = (mean / std).toFixed(2);
+  }
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">Backtest — {strategy} on {symbol}</div>
+        <div className="fs-11 text-muted mb-8">Using {prices.length} collected ticks</div>
+        <button className="btn btn-primary btn-full" onClick={doBacktest} disabled={btRunning || prices.length < 80}>
+          {btRunning ? 'Running...' : 'Run Backtest'}
+        </button>
+      </div>
+
+      {r && (
+        <>
+          <div className="stats-grid">
+            <div className="stat-box">
+              <div className="stat-label">Total Trades</div>
+              <div className="stat-value">{totalTrades}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Win Rate</div>
+              <div className="stat-value">{wr}%</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Net P&L</div>
+              <div className={`stat-value ${r.totalPnL >= 0 ? 'text-primary' : 'text-danger'}`}>{r.totalPnL.toFixed(2)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Profit Factor</div>
+              <div className="stat-value">{profitFactor}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Max Drawdown</div>
+              <div className="stat-value text-danger">{r.maxDrawdown.toFixed(2)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Sharpe-like</div>
+              <div className="stat-value">{sharpe}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Best Streak</div>
+              <div className="stat-value text-primary">{r.maxStreak}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Worst Streak</div>
+              <div className="stat-value text-danger">{r.maxLossStreak}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Up / Down</div>
+              <div className="stat-value"><span className="text-primary">{r.callCount}</span> / <span className="text-danger">{r.putCount}</span></div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-label">Avg P&L / Trade</div>
+              <div className="stat-value">{avgPnL}</div>
+            </div>
+          </div>
+
+          {r.rollingWR.length > 2 && (
+            <div className="card mt-8">
+              <div className="card-title">Rolling Win Rate (20-trade window)</div>
+              <WRSparkline data={r.rollingWR} height={50} />
+            </div>
+          )}
+
+          {/* Backtest Trade List — FIX #8: Up/Down labels */}
+          <div className="card mt-8">
+            <div className="card-title">Trade Details ({r.trades.length})</div>
+            <div className="bt-trade-list">
+              {r.trades.map((t, i) => (
+                <div key={i} className="bt-trade">
+                  <span className="mono">#{i + 1} {dirArrow(t.direction)} {dirLabel(t.direction)}</span>
+                  <span className="mono" style={{ color: 'var(--muted)' }}>str:{t.strength}</span>
+                  <span className={`mono fw-600 ${t.won ? 'text-primary' : 'text-danger'}`}>
+                    {t.won ? '+0.85' : '-1.00'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const SettingsTab = ({
+  connStatus, token, setToken, connect, disconnect, symbol, setSymbol,
+  durKey, setDurKey, strategy, setStrategy, macdGateEnabled, setMacdGateEnabled,
+  minStrength, setMinStrength, autoMode, setAutoMode, stake, setStake,
+  setCurrentStake, currentStakeRef, mmSystem, setMMSystem, setMartiStep, martiStepRef,
+  martiFactor, setMartiFactor, maxMartiSteps, setMaxMartiSteps,
+  dalUnit, setDalUnit, revMartiMax, setRevMartiMax, currentStake, martiStep,
+  profitTarget, setProfitTarget, lossLimit, setLossLimit, maxTrades, setMaxTrades,
+  cooldownLosses, setCooldownLosses, cooldownSecs, setCooldownSecs,
+  soundOn, setSoundOn
+}) => (
+  <div>
+    {/* Connection */}
+    <Collapsible title="Connection" defaultOpen={connStatus !== 'connected'}>
+      <div className="input-group">
+        <label className="input-label">API Token</label>
+        <input className="input-field" type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Enter Deriv API token" />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={connect} disabled={connStatus === 'connected' || connStatus === 'connecting'}>
+          Connect
+        </button>
+        <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={disconnect} disabled={connStatus === 'disconnected'}>
+          Disconnect
+        </button>
+      </div>
+      <div className="fs-11 text-muted mt-8">
+        Status: <span style={{ color: connStatus === 'connected' ? 'var(--primary)' : connStatus === 'connecting' ? 'var(--warning)' : 'var(--danger)' }}>
+          {connStatus.toUpperCase()}
+        </span>
+      </div>
+    </Collapsible>
+
+    {/* Market — FIX #4: Duration uses durKey not index */}
+    <Collapsible title="Market" defaultOpen={true}>
+      <div className="input-group">
+        <label className="input-label">Symbol</label>
+        <select className="input-field" value={symbol} onChange={e => setSymbol(e.target.value)}>
+          {SYMBOLS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+      <div className="input-group">
+        <label className="input-label">Duration</label>
+        <select className="input-field" value={durKey} onChange={e => setDurKey(e.target.value)}>
+          {DURATIONS.map(d => <option key={makeDurKey(d)} value={makeDurKey(d)}>{d.label}</option>)}
+        </select>
+      </div>
+    </Collapsible>
+
+    {/* Strategy */}
+    <Collapsible title="Strategy" defaultOpen={true}>
+      <div className="input-group">
+        <label className="input-label">Strategy</label>
+        <select id="strategySelector" className="input-field" value={strategy} onChange={e => setStrategy(e.target.value)}>
+          {STRATEGIES.map(s => <option key={s} value={s}>{STRATEGY_LABELS[s] || s}</option>)}
+        </select>
+      </div>
+      <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
+        {strategy === 'HYBRID' && '5-indicator confluence: RSI + StochRSI + BB + EMA + MACD weighted voting. Requires MACD gate alignment + ATR spike filter.'}
+        {strategy === 'EMA_STOCH' && 'V50 M5 Trend Scalper: EMA(8) trend + Stochastic(5,3,3) oversold/overbought crossover + slope filter. From Deriv official strategy guide. Best on trending V50.'}
+        {strategy === 'SMA_RSI' && 'V50 H1/H4 Pullback Swing: SMA(20/50) crossover + RSI(14) momentum zone + price pullback to 20 SMA. Swing trading for directional V50 sessions.'}
+        {strategy === 'BB_SQUEEZE' && 'V50 M15 Squeeze Breakout: Bollinger Bands inside Keltner Channels (squeeze) then expansion breakout, confirmed by MACD histogram + RSI. 2-6 signals per day.'}
+        {strategy === 'RSI' && 'RSI oversold/overbought zones with EMA trend filter and MACD directional gate.'}
+        {strategy === 'EMA' && 'EMA crossover detection with ATR spike guard and MACD gate confirmation.'}
+        {strategy === 'BB' && 'Bollinger Band touch at extremes combined with StochRSI oversold/overbought and MACD gate.'}
+        {strategy === 'MACD' && 'MACD crossover as primary signal with RSI confirmation filter.'}
+        {strategy === MARSBOT_PRO_ID && '🔒 Locked AI strategy: EMA(10/50) trend + adaptive RSI zones + support/resistance proximity + ATR volatility filter. Parameters are frozen and auto-tune via win/loss learning.'}
+      </div>
+      {strategy === MARSBOT_PRO_ID ? (
+        <div style={{ background: 'rgba(0,255,136,0.07)', border: '1px solid rgba(0,255,136,0.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+          <div style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>🔒 LOCKED STRATEGY — MarsBotPro V50</div>
+          <div className="fs-11 text-muted" style={{ lineHeight: 1.6 }}>
+            All parameters are fixed and cannot be adjusted. The AI learning engine adapts RSI thresholds and confidence automatically.<br/>
+            <span style={{ color: 'var(--primary)' }}>Win/Loss: {AI_STATE.wins}W / {AI_STATE.losses}L</span>
+            {' | '}RSI Offset: <span style={{ color: 'var(--warning)' }}>{AI_STATE.rsiOffset > 0 ? '+' : ''}{AI_STATE.rsiOffset}</span>
+            {' | '}Conf Offset: <span style={{ color: 'var(--warning)' }}>{AI_STATE.confidenceOffset > 0 ? '+' : ''}{AI_STATE.confidenceOffset}</span>
+          </div>
+          <div className="fs-11 mt-8" style={{ color: 'var(--muted)' }}>
+            Expiry: <span className="mono text-primary">{MARSBOT_PRO_CONFIG.expiryCandles} candles</span>
+            {' | '}Base Risk: <span className="mono text-primary">{(MARSBOT_PRO_CONFIG.baseRisk * 100).toFixed(0)}%</span>
+            {' | '}Min Confidence: <span className="mono text-primary">{MARSBOT_PRO_CONFIG.minConfidence + AI_STATE.confidenceOffset}%</span>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Toggle label="MACD Gate" value={macdGateEnabled} onChange={setMacdGateEnabled} />
+          <div className="input-group mt-8">
+            <div className="flex-between">
+              <label className="input-label">Min Strength</label>
+              <span className="slider-value">{minStrength}%</span>
+            </div>
+            <div className="slider-wrap">
+              <input className="slider-input" type="range" min="30" max="95" value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value))} />
+            </div>
+          </div>
+        </>
+      )}
+    </Collapsible>
+
+    {/* Execution */}
+    <Collapsible title="Execution" defaultOpen={false}>
+      <Toggle label="Auto Trading" value={autoMode} onChange={setAutoMode} />
+      <div className="input-group mt-8">
+        <label className="input-label">Base Stake ($)</label>
+        <input className="input-field" type="number" min="0.35" step="0.01" value={stake} onChange={e => {
+          setStake(e.target.value);
+          const v = parseFloat(e.target.value) || 1;
+          setCurrentStake(v);
+          currentStakeRef.current = v;
+        }} />
+      </div>
+    </Collapsible>
+
+    {/* Money Management */}
+    <Collapsible title="Money Management" defaultOpen={false}>
+      <div className="input-group">
+        <label className="input-label">System</label>
+        <select className="input-field" value={mmSystem} onChange={e => { setMMSystem(e.target.value); setMartiStep(0); martiStepRef.current = 0; const v = parseFloat(stake) || 1; setCurrentStake(v); currentStakeRef.current = v; }}>
+          <option value="FLAT">Flat (Fixed Stake)</option>
+          <option value="MARTINGALE">Martingale</option>
+          <option value="DALEMBERT">D'Alembert</option>
+          <option value="REVERSE_MARTINGALE">Reverse Martingale (Anti-Martingale)</option>
+        </select>
+      </div>
+      <div className="fs-11 text-muted mb-8" style={{ lineHeight: 1.5 }}>
+        {mmSystem === 'FLAT' && 'Always trade the base stake amount. No progression.'}
+        {mmSystem === 'MARTINGALE' && 'After a loss, multiply stake by factor. After a win, reset to base. Max steps limits progression.'}
+        {mmSystem === 'DALEMBERT' && "After a loss, increase stake by unit. After a win, decrease by unit. Minimum is always the base stake."}
+        {mmSystem === 'REVERSE_MARTINGALE' && 'After a WIN, multiply stake. After a loss, reset to base. Max stake caps the progression.'}
+      </div>
+
+      {(mmSystem === 'MARTINGALE' || mmSystem === 'REVERSE_MARTINGALE') && (
+        <div className="input-group">
+          <label className="input-label">Multiplier</label>
+          <input className="input-field" type="number" min="1.1" max="5" step="0.1" value={martiFactor} onChange={e => setMartiFactor(parseFloat(e.target.value) || 2)} />
+        </div>
+      )}
+
+      {mmSystem === 'MARTINGALE' && (
+        <div className="input-group">
+          <label className="input-label">Max Steps</label>
+          <input className="input-field" type="number" min="1" max="10" value={maxMartiSteps} onChange={e => setMaxMartiSteps(parseInt(e.target.value) || 5)} />
+        </div>
+      )}
+
+      {mmSystem === 'DALEMBERT' && (
+        <div className="input-group">
+          <label className="input-label">Unit Increment ($)</label>
+          <input className="input-field" type="number" min="0.1" step="0.1" value={dalUnit} onChange={e => setDalUnit(parseFloat(e.target.value) || 0.5)} />
+        </div>
+      )}
+
+      {mmSystem === 'REVERSE_MARTINGALE' && (
+        <div className="input-group">
+          <label className="input-label">Max Stake ($)</label>
+          <input className="input-field" type="number" min="1" step="1" value={revMartiMax} onChange={e => setRevMartiMax(parseFloat(e.target.value) || 10)} />
+        </div>
+      )}
+
+      <div className="fs-11 text-muted mt-8">
+        Current Stake: <span className="mono text-primary">${currentStake.toFixed(2)}</span>
+        {mmSystem === 'MARTINGALE' && <span> | Step: {martiStep}/{maxMartiSteps}</span>}
+      </div>
+    </Collapsible>
+
+    {/* Risk Management */}
+    <Collapsible title="Risk Management" defaultOpen={false}>
+      <div className="input-group">
+        <label className="input-label">Profit Target ($)</label>
+        <input className="input-field" type="number" min="0" step="1" value={profitTarget} onChange={e => setProfitTarget(e.target.value)} placeholder="e.g. 10" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Loss Limit ($)</label>
+        <input className="input-field" type="number" min="0" step="1" value={lossLimit} onChange={e => setLossLimit(e.target.value)} placeholder="e.g. 5" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Max Trades per Session</label>
+        <input className="input-field" type="number" min="0" step="1" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} placeholder="e.g. 50" />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Consecutive Loss Cooldown (# losses)</label>
+        <input className="input-field" type="number" min="1" max="20" value={cooldownLosses} onChange={e => setCooldownLosses(parseInt(e.target.value) || 3)} />
+      </div>
+      <div className="input-group">
+        <label className="input-label">Cooldown Duration (seconds)</label>
+        <input className="input-field" type="number" min="0" max="300" value={cooldownSecs} onChange={e => setCooldownSecs(parseInt(e.target.value) || 30)} />
+      </div>
+    </Collapsible>
+
+    {/* Alerts */}
+    <Collapsible title="Sound Alerts" defaultOpen={false}>
+      <Toggle label="Enable Sounds" value={soundOn} onChange={setSoundOn} />
+      <div className="fs-11 text-muted mt-8">
+        Signal beep, win double beep, loss low tone. Requires user interaction to enable AudioContext.
+      </div>
+      <button className="btn btn-outline btn-sm mt-8" onClick={() => { sounds.signal(); setTimeout(() => sounds.win(), 400); setTimeout(() => sounds.loss(), 900); }}>
+        Test Sounds
+      </button>
+    </Collapsible>
+  </div>
+);
+
+const LogsTab = ({ logs, setLogs }) => (
+  <div>
+    <div className="flex-between mb-8">
+      <span className="card-title" style={{ margin: 0 }}>Logs ({logs.length})</span>
+      <button className="btn btn-outline btn-sm" onClick={() => setLogs([])}>Clear</button>
+    </div>
+    <div className="card" style={{ padding: 8 }}>
+      {logs.length === 0 ? (
+        <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No logs yet</div>
+      ) : (
+        <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+          {logs.map((l, i) => (
+            <div key={i} className="log-entry">
+              <span className="log-time">{l.time}</span>
+              <span className={`log-msg log-${l.level}`}>{l.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+
+/* ================================================================
+   SECTION 10: MAIN APP
+   ================================================================ */
+
+const App = () => {
+  // ---- State ----
+  const [tab, setTab] = useState('signal');
+  const [connStatus, setConnStatus] = useState('disconnected');
+  const [balance, setBalance] = useState(null);
+  const [currency, setCurrency] = useState('USD');
+  const [prices, setPrices] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [signal, setSignal] = useState({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
+  const [trades, setTrades] = useState(() => loadStoredTrades()); // FIX #2: load from localStorage
+  const [openContract, setOpenContract] = useState(null);
+  const [backtestResult, setBTResult] = useState(null);
+  const [btRunning, setBTRunning] = useState(false);
+
+  // Settings
+  const [token, setToken] = useState('');
+  const [symbol, setSymbol] = useState('R_50');
+  const [durKey, setDurKey] = useState(DEFAULT_DUR_KEY); // FIX #4: string key, not index
+  const [strategy, setStrategy] = useState('HYBRID');
+  const [autoMode, setAutoMode] = useState(false);
+  const [stake, setStake] = useState('1');
+  const [mmSystem, setMMSystem] = useState('FLAT');
+  const [martiFactor, setMartiFactor] = useState(2);
+  const [maxMartiSteps, setMaxMartiSteps] = useState(5);
+  const [dalUnit, setDalUnit] = useState(0.5);
+  const [revMartiMax, setRevMartiMax] = useState(10);
+  const [soundOn, setSoundOn] = useState(true);
+  const [profitTarget, setProfitTarget] = useState('');
+  const [lossLimit, setLossLimit] = useState('');
+  const [maxTrades, setMaxTrades] = useState('');
+  const [cooldownLosses, setCooldownLosses] = useState(3);
+  const [cooldownSecs, setCooldownSecs] = useState(30);
+  const [macdGateEnabled, setMacdGateEnabled] = useState(true);
+  const [minStrength, setMinStrength] = useState(70);
+  const [running, setRunning] = useState(false);
+
+  // Session
+  const [sessionPnL, setSessionPnL] = useState(0);
+  const [sessionTrades, setSessionTrades] = useState(0);
+  const [sessionWins, setSessionWins] = useState(0);
+  const [bestTrade, setBestTrade] = useState(0);
+  const [worstTrade, setWorstTrade] = useState(0);
+  const [winStreak, setWinStreak] = useState(0);
+  const [maxWinStreak, setMaxWinStreak] = useState(0);
+  const [consLosses, setConsLosses] = useState(0);
+  const [cooldownEnd, setCooldownEnd] = useState(null);
+  const [cooldownRemain, setCooldownRemain] = useState(0);
+  const [sessionStopped, setSessionStopped] = useState(false);
+  const [currentStake, setCurrentStake] = useState(1);
+  const [martiStep, setMartiStep] = useState(0);
+  const [isBuying, setIsBuying] = useState(false); // FIX: reactive buying state for button UI
+
+  // Refs for WebSocket callbacks (avoid stale closures)
+  const wsRef = useRef(null);
+  const pingRef = useRef(null);
+  const reconnectCount = useRef(0);
+  const reconnectTimer = useRef(null);
+  const pricesRef = useRef([]);
+  const runningRef = useRef(false);
+  const autoModeRef = useRef(false);
+  const strategyRef = useRef('HYBRID');
+  const symbolRef = useRef('R_50');
+  const stakeRef = useRef(1);
+  const currentStakeRef = useRef(1);
+  const mmSystemRef = useRef('FLAT');
+  const martiFactorRef = useRef(2);
+  const maxMartiStepsRef = useRef(5);
+  const dalUnitRef = useRef(0.5);
+  const revMartiMaxRef = useRef(10);
+  const martiStepRef = useRef(0);
+  const soundOnRef = useRef(true);
+  const profitTargetRef = useRef('');
+  const lossLimitRef = useRef('');
+  const maxTradesRef = useRef('');
+  const cooldownLossesRef = useRef(3);
+  const cooldownSecsRef = useRef(30);
+  const macdGateEnabledRef = useRef(true);
+  const minStrengthRef = useRef(70);
+  const sessionPnLRef = useRef(0);
+  const sessionTradesRef = useRef(0);
+  const consLossesRef = useRef(0);
+  const cooldownEndRef = useRef(null);
+  const sessionStoppedRef = useRef(false);
+  const durKeyRef = useRef(DEFAULT_DUR_KEY); // FIX #4
+  const pendingBuyId = useRef(null);
+  const contractSubId = useRef(null);
+  const tickSubId = useRef(null);
+  const tokenRef = useRef(''); // FIX #6: keep token for reconnect re-auth
+  const isBuyingRef = useRef(false); // FIX: ref-based buying flag for button disable
+  const contractSafetyTimer = useRef(null); // FIX: safety timeout to clear stale contracts
+
+  // Sync state to refs
+  useEffect(() => { pricesRef.current = prices; }, [prices]);
+  useEffect(() => { runningRef.current = running; }, [running]);
+  useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
+  useEffect(() => { strategyRef.current = strategy; }, [strategy]);
+  useEffect(() => { symbolRef.current = symbol; }, [symbol]);
+  useEffect(() => { stakeRef.current = parseFloat(stake) || 1; }, [stake]);
+  useEffect(() => { currentStakeRef.current = currentStake; }, [currentStake]);
+  useEffect(() => { mmSystemRef.current = mmSystem; }, [mmSystem]);
+  useEffect(() => { martiFactorRef.current = martiFactor; }, [martiFactor]);
+  useEffect(() => { maxMartiStepsRef.current = maxMartiSteps; }, [maxMartiSteps]);
+  useEffect(() => { dalUnitRef.current = dalUnit; }, [dalUnit]);
+  useEffect(() => { revMartiMaxRef.current = revMartiMax; }, [revMartiMax]);
+  useEffect(() => { martiStepRef.current = martiStep; }, [martiStep]);
+  useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+  useEffect(() => { profitTargetRef.current = profitTarget; }, [profitTarget]);
+  useEffect(() => { lossLimitRef.current = lossLimit; }, [lossLimit]);
+  useEffect(() => { maxTradesRef.current = maxTrades; }, [maxTrades]);
+  useEffect(() => { cooldownLossesRef.current = cooldownLosses; }, [cooldownLosses]);
+  useEffect(() => { cooldownSecsRef.current = cooldownSecs; }, [cooldownSecs]);
+  useEffect(() => { macdGateEnabledRef.current = macdGateEnabled; }, [macdGateEnabled]);
+  useEffect(() => { minStrengthRef.current = minStrength; }, [minStrength]);
+  useEffect(() => { sessionPnLRef.current = sessionPnL; }, [sessionPnL]);
+  useEffect(() => { sessionTradesRef.current = sessionTrades; }, [sessionTrades]);
+  useEffect(() => { consLossesRef.current = consLosses; }, [consLosses]);
+  useEffect(() => { cooldownEndRef.current = cooldownEnd; }, [cooldownEnd]);
+  useEffect(() => { sessionStoppedRef.current = sessionStopped; }, [sessionStopped]);
+  useEffect(() => { durKeyRef.current = durKey; }, [durKey]); // FIX #4
+  useEffect(() => { tokenRef.current = token; }, [token]); // FIX #6
+
+  // ---- Logging ----
+  const addLog = useCallback((msg, level = 'info') => {
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    setLogs(prev => {
+      const next = [{ time, msg, level }, ...prev];
+      return next.length > MAX_LOGS ? next.slice(0, MAX_LOGS) : next;
+    });
+  }, []);
+
+  // ---- Cooldown timer ----
+  useEffect(() => {
+    if (!cooldownEnd) { setCooldownRemain(0); return; }
+    const iv = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000));
+      setCooldownRemain(rem);
+      if (rem <= 0) { setCooldownEnd(null); cooldownEndRef.current = null; addLog('Cooldown ended, resuming', 'success'); }
+    }, 500);
+    return () => clearInterval(iv);
+  }, [cooldownEnd, addLog]);
+
+  // ---- WebSocket ----
+  const wsSend = useCallback((data) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  const unsubTicks = useCallback(() => {
+    if (tickSubId.current) {
+      wsSend({ forget: tickSubId.current });
+      tickSubId.current = null;
+    }
+  }, [wsSend]);
+
+  const subTicks = useCallback((sym) => {
+    unsubTicks();
+    wsSend({ ticks: sym, subscribe: 1 });
+    addLog(`Subscribed to ${sym} ticks`, 'info');
+  }, [wsSend, unsubTicks, addLog]);
+
+  /* FIX #4: placeTrade reads durKey not durIdx. Parses the key to get
+     the exact value/unit. What the UI shows is exactly what the API gets. */
+  const placeTrade = useCallback((direction) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (sessionStoppedRef.current) { addLog('Session stopped — trade blocked', 'warn'); return; }
+    if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) { addLog('Cooldown active — trade blocked', 'warn'); return; }
+
+    const dur = parseDurKey(durKeyRef.current);
+    const amount = currentStakeRef.current;
+    const req = {
+      buy: 1,
+      price: amount,
+      parameters: {
+        contract_type: direction, // Always CALL or PUT — API contract type
+        symbol: symbolRef.current,
+        duration: dur.value,
+        duration_unit: dur.unit,
+        basis: 'stake',
+        amount: amount,
+        currency: 'USD',
+      },
+    };
+    isBuyingRef.current = true; // FIX: set buying flag immediately
+    setIsBuying(true); // FIX: trigger re-render to disable buttons
+    pendingBuyId.current = Date.now();
+    wsSend(req);
+    addLog(`Trade placed: ${dirLabel(direction)} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
+    // FIX: Safety timeout for buy — if no response in 15s, re-enable buttons
+    setTimeout(() => {
+      if (isBuyingRef.current && !openContract) {
+        isBuyingRef.current = false;
+        setIsBuying(false);
+        addLog('Buy timeout — no response, re-enabling buttons', 'warn');
+      }
+    }, 15000);
+    if (soundOnRef.current) sounds.signal();
+  }, [wsSend, addLog]);
+
+  const evalSignal = useCallback(() => {
+    const p = pricesRef.current;
+    if (p.length < 40) return; // FIX #3: guard against insufficient data
+    const sig = getSignal(strategyRef.current, p, symbolRef.current, autoModeRef.current);
+
+    // 🔒 MarsBotPro V50 manages its own thresholds — bypass external filters
+    if (strategyRef.current !== MARSBOT_PRO_ID) {
+      if (sig.direction && sig.strength < minStrengthRef.current) {
+        sig.direction = null;
+      }
+      if (sig.direction && macdGateEnabledRef.current && !sig.macdOk) {
+        sig.direction = null;
+      }
+    }
+
+    setSignal(sig);
+
+    if (!sig.direction || !runningRef.current) return;
+    if (sessionStoppedRef.current) return;
+    if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return;
+
+    // FIX: Don't place auto trade if there's already an open contract
+    if (autoModeRef.current && !isBuyingRef.current) {
+      placeTrade(sig.direction);
+    }
+  }, [placeTrade]);
+
+  /* FIX #2: handleContractUpdate with dedup + localStorage persistence.
+     FIX #5: extracts start_time, expiry_time from proposal_open_contract. */
+  const handleContractUpdate = useCallback((data) => {
+    const c = data.proposal_open_contract;
+    if (!c) return;
+
+    // FIX: Detect ALL terminal contract states — Deriv uses sold/won/lost + is_expired+is_settleable
+    const isTerminal = c.is_sold || c.status === 'sold' || c.status === 'won' || c.status === 'lost' || (c.is_expired && c.is_settleable);
+    if (isTerminal) {
+      const pnl = parseFloat(c.profit) || 0;
+      const won = pnl > 0;
+      const tradeRecord = {
+        id: c.contract_id, // used for dedup
+        time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+        symbol: c.underlying || symbolRef.current,
+        direction: c.contract_type === 'CALL' ? 'CALL' : 'PUT', // API value stays CALL/PUT
+        strategy: strategyRef.current,
+        stake: parseFloat(c.buy_price) || currentStakeRef.current,
+        won,
+        profit: pnl,
+        strength: 0,
+        macdOk: true,
+      };
+
+      // FIX #2: dedup by contract_id + persist to localStorage
+      setTrades(prev => addTradeDeduped(prev, tradeRecord));
+      setOpenContract(null);
+      isBuyingRef.current = false; // FIX: clear buying flag on contract completion
+      setIsBuying(false); // FIX: re-enable buttons
+      if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
+
+      if (contractSubId.current) {
+        wsSend({ forget: contractSubId.current });
+        contractSubId.current = null;
+      }
+
+      // Session tracking
+      const newPnL = sessionPnLRef.current + pnl;
+      const newTradeCount = sessionTradesRef.current + 1;
+      setSessionPnL(newPnL);
+      sessionPnLRef.current = newPnL;
+      setSessionTrades(newTradeCount);
+      sessionTradesRef.current = newTradeCount;
+
+      if (won) {
+        setSessionWins(prev => prev + 1);
+        setWinStreak(prev => { const n = prev + 1; setMaxWinStreak(m => Math.max(m, n)); return n; });
+        setConsLosses(0);
+        consLossesRef.current = 0;
+        setBestTrade(prev => Math.max(prev, pnl));
+        addLog(`WIN +$${pnl.toFixed(2)}`, 'success');
+        if (soundOnRef.current) sounds.win();
+        // 🔒 MarsBotPro AI learning feedback
+        if (strategyRef.current === MARSBOT_PRO_ID) updateAI('win');
+      } else {
+        setWinStreak(0);
+        const newConsLosses = consLossesRef.current + 1;
+        setConsLosses(newConsLosses);
+        consLossesRef.current = newConsLosses;
+        setWorstTrade(prev => Math.min(prev, pnl));
+        addLog(`LOSS -$${Math.abs(pnl).toFixed(2)}`, 'error');
+        if (soundOnRef.current) sounds.loss();
+        // 🔒 MarsBotPro AI learning feedback
+        if (strategyRef.current === MARSBOT_PRO_ID) updateAI('loss');
+
+        if (newConsLosses >= cooldownLossesRef.current && cooldownSecsRef.current > 0) {
+          const end = Date.now() + cooldownSecsRef.current * 1000;
+          setCooldownEnd(end);
+          cooldownEndRef.current = end;
+          addLog(`Cooldown activated: ${cooldownSecsRef.current}s after ${newConsLosses} consecutive losses`, 'warn');
+        }
+      }
+
+      // Money management
+      const baseStake = stakeRef.current;
+      let nextStake = baseStake;
+      const mm = mmSystemRef.current;
+
+      if (mm === 'FLAT') {
+        nextStake = baseStake;
+      } else if (mm === 'MARTINGALE') {
+        if (won) {
+          nextStake = baseStake;
+          setMartiStep(0); martiStepRef.current = 0;
+        } else {
+          const newStep = Math.min(martiStepRef.current + 1, maxMartiStepsRef.current);
+          setMartiStep(newStep); martiStepRef.current = newStep;
+          nextStake = baseStake * Math.pow(martiFactorRef.current, newStep);
+        }
+      } else if (mm === 'DALEMBERT') {
+        if (won) {
+          nextStake = Math.max(baseStake, currentStakeRef.current - dalUnitRef.current);
+        } else {
+          nextStake = currentStakeRef.current + dalUnitRef.current;
+        }
+      } else if (mm === 'REVERSE_MARTINGALE') {
+        if (won) {
+          nextStake = Math.min(currentStakeRef.current * martiFactorRef.current, revMartiMaxRef.current);
+        } else {
+          nextStake = baseStake;
+        }
+      }
+
+      nextStake = Math.round(nextStake * 100) / 100;
+      setCurrentStake(nextStake);
+      currentStakeRef.current = nextStake;
+
+      // Session stop checks
+      const pt = parseFloat(profitTargetRef.current);
+      const ll = parseFloat(lossLimitRef.current);
+      const mt = parseInt(maxTradesRef.current);
+
+      if (pt && newPnL >= pt) {
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
+        addLog(`PROFIT TARGET reached: $${newPnL.toFixed(2)} >= $${pt.toFixed(2)}`, 'success');
+      } else if (ll && newPnL <= -Math.abs(ll)) {
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
+        addLog(`LOSS LIMIT reached: $${newPnL.toFixed(2)} <= -$${Math.abs(ll).toFixed(2)}`, 'error');
+      } else if (mt && newTradeCount >= mt) {
+        setSessionStopped(true); sessionStoppedRef.current = true;
+        setRunning(false); runningRef.current = false;
+        addLog(`MAX TRADES reached: ${newTradeCount}/${mt}`, 'warn');
+      }
+    } else {
+      // Still open — FIX #5: include start_time, expiry_time, countdown
+      setOpenContract({
+        id: c.contract_id,
+        type: c.contract_type,
+        buyPrice: parseFloat(c.buy_price),
+        currentPnL: parseFloat(c.profit) || 0,
+        entrySpot: c.entry_spot,
+        currentSpot: c.current_spot,
+        isExpired: c.is_expired,
+        startTime: c.date_start || c.purchase_time || null,  // FIX #5: server epoch
+        expiryTime: c.date_expiry || null,                    // FIX #5: server epoch
+      });
+
+      // FIX: Safety timeout — if contract has an expiry, set a timer to force-clear
+      // after expiry + 30s buffer in case the sold/won/lost message is missed
+      if (c.date_expiry && !contractSafetyTimer.current) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const bufferMs = Math.max((c.date_expiry - nowSec + 30) * 1000, 10000); // min 10s
+        contractSafetyTimer.current = setTimeout(() => {
+          addLog('Safety timeout: clearing stale contract', 'warn');
+          setOpenContract(null);
+          isBuyingRef.current = false;
+          setIsBuying(false);
+          if (contractSubId.current) {
+            wsSend({ forget: contractSubId.current });
+            contractSubId.current = null;
+          }
+          contractSafetyTimer.current = null;
+        }, bufferMs);
+      }
+    }
+  }, [wsSend, addLog]);
+
+  const handleMessage = useCallback((evt) => {
+    let data;
+    try { data = JSON.parse(evt.data); } catch { return; }
+
+    if (data.error) {
+      addLog(`API Error: ${data.error.message}`, 'error');
+      // FIX: If this is a buy error, clear the pending buy state so buttons re-enable
+      if (data.echo_req && data.echo_req.buy) {
+        isBuyingRef.current = false;
+        setIsBuying(false);
+        setOpenContract(null);
+        pendingBuyId.current = null;
+        addLog('Buy failed — buttons re-enabled', 'warn');
+      }
+      return;
+    }
+
+    if (data.msg_type === 'authorize') {
+      setConnStatus('connected');
+      reconnectCount.current = 0;
+      const acct = data.authorize;
+      setBalance(parseFloat(acct.balance));
+      setCurrency(acct.currency || 'USD');
+      addLog(`Authorized: ${acct.loginid} | Balance: ${acct.currency} ${acct.balance}`, 'success');
+      wsSend({ balance: 1, subscribe: 1 });
+      subTicks(symbolRef.current);
+    }
+
+    if (data.msg_type === 'balance') {
+      setBalance(parseFloat(data.balance.balance));
+    }
+
+    if (data.msg_type === 'tick') {
+      const tick = data.tick;
+      if (data.subscription && data.subscription.id) tickSubId.current = data.subscription.id;
+      const price = parseFloat(tick.quote);
+      setPrices(prev => {
+        const next = [...prev, price];
+        return next.length > MAX_PRICES ? next.slice(-MAX_PRICES) : next;
+      });
+      pricesRef.current = [...pricesRef.current, price];
+      if (pricesRef.current.length > MAX_PRICES) pricesRef.current = pricesRef.current.slice(-MAX_PRICES);
+      evalSignal();
+    }
+
+    if (data.msg_type === 'buy') {
+      const buyResp = data.buy;
+      addLog(`Contract purchased: ID ${buyResp.contract_id} | Cost: $${parseFloat(buyResp.buy_price).toFixed(2)}`, 'info');
+      wsSend({ proposal_open_contract: 1, contract_id: buyResp.contract_id, subscribe: 1 });
+    }
+
+    if (data.msg_type === 'proposal_open_contract') {
+      if (data.subscription) contractSubId.current = data.subscription.id;
+      handleContractUpdate(data);
+    }
+
+    if (data.msg_type === 'ping') { /* keep alive ack */ }
+  }, [addLog, wsSend, subTicks, evalSignal, handleContractUpdate]);
+
+  /* FIX #6: WebSocket reconnect with exponential backoff, re-auth, re-subscribe.
+     Uses 2^n * 1000ms delay (1s, 2s, 4s, 8s, 16s, 32s, 64s max).
+     On reconnect: re-authorizes token, re-subscribes to ticks. */
+  const connect = useCallback(() => {
+    const tok = tokenRef.current || token;
+    if (!tok.trim()) { addLog('Enter API token first', 'warn'); return; }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+    }
+    setConnStatus('connecting');
+    addLog('Connecting...', 'info');
+
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      addLog('WebSocket connected, authorizing...', 'info');
+      ws.send(JSON.stringify({ authorize: tok.trim() })); // FIX #6: re-auth on reconnect
+      if (pingRef.current) clearInterval(pingRef.current);
+      pingRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
+      }, PING_INTERVAL);
+    };
+
+    ws.onmessage = handleMessage;
+
+    ws.onclose = () => {
+      setConnStatus('disconnected');
+      setOpenContract(null);
+      isBuyingRef.current = false; // FIX: clear buying state on disconnect
+      setIsBuying(false);
+      if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
+      tickSubId.current = null; // FIX #6: clear stale sub IDs
+      contractSubId.current = null;
+      if (pingRef.current) clearInterval(pingRef.current);
+      addLog('WebSocket disconnected', 'warn');
+
+      // FIX #6: Exponential backoff reconnect with re-auth
+      if (reconnectCount.current < MAX_RECONNECT && tokenRef.current.trim()) {
+        reconnectCount.current++;
+        const delay = Math.min(Math.pow(2, reconnectCount.current) * 1000, 64000); // max 64s
+        addLog(`Reconnecting in ${(delay / 1000).toFixed(0)}s (attempt ${reconnectCount.current}/${MAX_RECONNECT})...`, 'info');
+        reconnectTimer.current = setTimeout(() => connect(), delay);
+      } else if (reconnectCount.current >= MAX_RECONNECT) {
+        addLog('Max reconnect attempts reached. Please reconnect manually.', 'error');
+      }
+    };
+
+    ws.onerror = () => {
+      addLog('WebSocket error', 'error');
+    };
+  }, [token, handleMessage, addLog]);
+
+  const disconnect = useCallback(() => {
+    reconnectCount.current = MAX_RECONNECT; // prevent auto reconnect
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    if (pingRef.current) clearInterval(pingRef.current);
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setConnStatus('disconnected');
+    setRunning(false);
+    runningRef.current = false;
+    setPrices([]);
+    pricesRef.current = [];
+    setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
+    addLog('Disconnected', 'info');
+  }, [addLog]);
+
+  // FIX #3: On symbol change, clear prices and re-subscribe cleanly
+  useEffect(() => {
+    if (connStatus === 'connected') {
+      setPrices([]);
+      pricesRef.current = [];
+      setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
+      subTicks(symbol);
+    }
+  }, [symbol, connStatus, subTicks]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+      if (pingRef.current) clearInterval(pingRef.current);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (contractSafetyTimer.current) clearTimeout(contractSafetyTimer.current);
+    };
+  }, []);
+
+  // Start/Stop
+  const toggleRunning = () => {
+    if (connStatus !== 'connected') { addLog('Connect first', 'warn'); return; }
+    const next = !running;
+    setRunning(next);
+    runningRef.current = next;
+    if (next) {
+      setSessionStopped(false);
+      sessionStoppedRef.current = false;
+      addLog(`Bot STARTED — ${strategy} / ${autoMode ? 'Auto' : 'Manual'} / ${mmSystem}`, 'success');
+    } else {
+      addLog('Bot STOPPED', 'warn');
+    }
+  };
+
+  const resetSession = () => {
+    setSessionPnL(0); sessionPnLRef.current = 0;
+    setSessionTrades(0); sessionTradesRef.current = 0;
+    setSessionWins(0);
+    setBestTrade(0); setWorstTrade(0);
+    setWinStreak(0); setMaxWinStreak(0);
+    setConsLosses(0); consLossesRef.current = 0;
+    setCooldownEnd(null); cooldownEndRef.current = null;
+    setSessionStopped(false); sessionStoppedRef.current = false;
+    setCurrentStake(parseFloat(stake) || 1);
+    currentStakeRef.current = parseFloat(stake) || 1;
+    setMartiStep(0); martiStepRef.current = 0;
+    addLog('Session reset', 'info');
+  };
+
+  const doBacktest = () => {
+    const p = pricesRef.current;
+    if (p.length < 80) { addLog('Need at least 80 ticks for backtest', 'warn'); return; }
+    setBTRunning(true);
+    addLog('Running backtest...', 'info');
+    setTimeout(() => {
+      const result = runBacktest(p, strategy, symbol, true);
+      setBTResult(result);
+      setBTRunning(false);
+      addLog(`Backtest done: ${result.trades.length} trades, ${result.wins}W/${result.losses}L, P&L: ${result.totalPnL.toFixed(2)}`, 'success');
+    }, 50);
+  };
+
+  const manualTrade = (dir) => {
+    if (connStatus !== 'connected') { addLog('Not connected', 'warn'); return; }
+    if (!running) { addLog('Start bot first', 'warn'); return; }
+    if (isBuyingRef.current) { addLog('Trade already in progress', 'warn'); return; }
+    placeTrade(dir);
+  };
+
+  // Derived
+  const sessionWinRate = sessionTrades > 0 ? Math.round((sessionWins / sessionTrades) * 100) : 0;
+  const priceSpark = prices.slice(-80);
+
+  /* ================================================================
+     RENDER: MAIN APP
+     FIX #1: Tab components are stable references defined outside App.
+     They receive data via props, so React doesn't unmount/remount them.
+     ================================================================ */
+  return (
+    <>
+      {/* Header */}
+      <div className="app-header">
+        <div className="logo">
+          <svg viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="#00ff88" strokeWidth="2" />
+            <circle cx="16" cy="16" r="6" fill="#00ff88" opacity="0.3" />
+            <path d="M16 2 L16 8 M16 24 L16 30 M2 16 L8 16 M24 16 L30 16" stroke="#00ff88" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M8 8 L12 12 M20 20 L24 24 M24 8 L20 12 M12 20 L8 24" stroke="#00ff88" strokeWidth="1" strokeLinecap="round" opacity="0.5" />
+          </svg>
+          <div>
+            <span className="logo-text">MarsBot</span>
+            <span className="logo-ver"> V4</span>
+          </div>
+        </div>
+        <div className="header-right">
+          <div className={`conn-dot ${connStatus}`} />
+          {balance !== null && <span className="balance-display">${balance.toFixed(2)}</span>}
+        </div>
+      </div>
+
+      {/* Tab Content — FIX #1: stable components, props-driven */}
+      <div className="tab-content">
+        {tab === 'signal' && <SignalTab
+          cooldownRemain={cooldownRemain} sessionStopped={sessionStopped}
+          profitTarget={profitTarget} sessionPnL={sessionPnL} lossLimit={lossLimit}
+          maxTrades={maxTrades} sessionTrades={sessionTrades} resetSession={resetSession}
+          signal={signal} strategy={strategy} autoMode={autoMode} running={running}
+          connStatus={connStatus} currentStake={currentStake} toggleRunning={toggleRunning}
+          manualTrade={manualTrade} sessionWinRate={sessionWinRate} sessionWins={sessionWins}
+          maxWinStreak={maxWinStreak} priceSpark={priceSpark} prices={prices} symbol={symbol}
+          openContract={openContract} isBuying={isBuying}
+        />}
+        {tab === 'trades' && <TradesTab
+          openContract={openContract} sessionTrades={sessionTrades}
+          sessionWinRate={sessionWinRate} sessionPnL={sessionPnL} sessionWins={sessionWins}
+          bestTrade={bestTrade} worstTrade={worstTrade} resetSession={resetSession}
+          trades={trades} addLog={addLog} symbol={symbol}
+        />}
+        {tab === 'backtest' && <BacktestTab
+          backtestResult={backtestResult} strategy={strategy} symbol={symbol}
+          prices={prices} doBacktest={doBacktest} btRunning={btRunning}
+        />}
+        {tab === 'settings' && <SettingsTab
+          connStatus={connStatus} token={token} setToken={setToken}
+          connect={connect} disconnect={disconnect} symbol={symbol} setSymbol={setSymbol}
+          durKey={durKey} setDurKey={setDurKey}
+          strategy={strategy} setStrategy={setStrategy}
+          macdGateEnabled={macdGateEnabled} setMacdGateEnabled={setMacdGateEnabled}
+          minStrength={minStrength} setMinStrength={setMinStrength}
+          autoMode={autoMode} setAutoMode={setAutoMode}
+          stake={stake} setStake={setStake} setCurrentStake={setCurrentStake}
+          currentStakeRef={currentStakeRef} mmSystem={mmSystem} setMMSystem={setMMSystem}
+          setMartiStep={setMartiStep} martiStepRef={martiStepRef}
+          martiFactor={martiFactor} setMartiFactor={setMartiFactor}
+          maxMartiSteps={maxMartiSteps} setMaxMartiSteps={setMaxMartiSteps}
+          dalUnit={dalUnit} setDalUnit={setDalUnit}
+          revMartiMax={revMartiMax} setRevMartiMax={setRevMartiMax}
+          currentStake={currentStake} martiStep={martiStep}
+          profitTarget={profitTarget} setProfitTarget={setProfitTarget}
+          lossLimit={lossLimit} setLossLimit={setLossLimit}
+          maxTrades={maxTrades} setMaxTrades={setMaxTrades}
+          cooldownLosses={cooldownLosses} setCooldownLosses={setCooldownLosses}
+          cooldownSecs={cooldownSecs} setCooldownSecs={setCooldownSecs}
+          soundOn={soundOn} setSoundOn={setSoundOn}
+        />}
+        {tab === 'logs' && <LogsTab logs={logs} setLogs={setLogs} />}
+      </div>
+
+      {/* Tab Bar */}
+      <div className="tab-bar">
+        {[
+          { id: 'signal', label: 'Signal', icon: Icons.signal },
+          { id: 'trades', label: 'Trades', icon: Icons.trades },
+          { id: 'backtest', label: 'Backtest', icon: Icons.backtest },
+          { id: 'settings', label: 'Settings', icon: Icons.settings },
+          { id: 'logs', label: 'Logs', icon: Icons.logs },
+        ].map(t => (
+          <button key={t.id} className={`tab-btn ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+            <t.icon />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+};
+
+// Mount
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
 </script>
-
 <footer class="footer-attr">
   <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Created with Perplexity Computer</a>
 </footer>
