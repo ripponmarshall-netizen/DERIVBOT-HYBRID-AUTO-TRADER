@@ -1249,55 +1249,6 @@ const computeBbSqueeze = (prices, cfg) => {
    SECTION 4C: MARSBOT PRO V50 — LOCKED AI STRATEGY ENGINE
    ================================================================ */
 
-function _mbpEMA(prices, period) {
-  if (!prices || prices.length < period || period < 1) return null;
-  const k = 2 / (period + 1);
-  let ema = 0;
-  for (let i = 0; i < period; i++) ema += prices[i];
-  ema /= period;
-  for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
-  return isFinite(ema) ? ema : null;
-}
-
-function _mbpRSI(prices, period) {
-  if (!prices || prices.length < period + 1 || period < 1) return null;
-  let gains = 0, losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const d = prices[i] - prices[i - 1];
-    if (d > 0) gains += d; else losses -= d;
-  }
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
-  for (let i = period + 1; i < prices.length; i++) {
-    const d = prices[i] - prices[i - 1];
-    avgGain = (avgGain * (period - 1) + (d > 0 ? d : 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + (d < 0 ? -d : 0)) / period;
-  }
-  if (avgLoss === 0) return 100;
-  const rsi = 100 - 100 / (1 + avgGain / avgLoss);
-  return isFinite(rsi) ? rsi : null;
-}
-
-function _mbpATR(prices, period) {
-  if (!prices || prices.length < period + 1 || period < 1) return null;
-  let total = 0;
-  for (let i = prices.length - period; i < prices.length; i++) {
-    total += Math.abs(prices[i] - prices[i - 1]);
-  }
-  const atr = total / period;
-  return isFinite(atr) ? atr : null;
-}
-
-function _mbpAvgRange(prices, period) {
-  /* CRIT-FIX: Guard must be period+1 because the loop accesses prices[i-1] */
-  if (!prices || prices.length < period + 1 || period < 1) return null;
-  let total = 0;
-  for (let i = prices.length - period; i < prices.length; i++) {
-    total += Math.abs(prices[i] - prices[i - 1]);
-  }
-  return total / period;
-}
-
 function _mbpNear(price, level, tolerance) {
   /* FIX 5: Use strict null check instead of falsy check. */
   if (price == null || level == null) return false;
@@ -1317,11 +1268,11 @@ const computeMarsBotPro = (prices) => {
   if (!prices || prices.length < 60) return out;
 
   const price  = prices[prices.length - 1];
-  const ema10  = _mbpEMA(prices, 10);
-  const ema50  = _mbpEMA(prices, 50);
-  const rsi    = _mbpRSI(prices, 14);
-  const atr    = _mbpATR(prices, 14);
-  const avgRange = _mbpAvgRange(prices, 20);
+  const ema10  = calcEMA(prices, 10);
+  const ema50  = calcEMA(prices, 50);
+  const rsi    = calcRSI(prices, 14);
+  const atr    = calcATR(prices, 14);
+  const avgRange = calcATR(prices, 20);
 
   if (ema10 === null || ema50 === null || rsi === null || atr === null || avgRange === null) return out;
 
