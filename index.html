@@ -373,8 +373,8 @@ function updateAI(result) {
   saveAI();
 }
 
-
-const STRATEGIES = ['HYBRID', 'EMA_STOCH', 'SMA_RSI', 'BB_SQUEEZE', 'RSI', 'EMA', 'BB', 'MACD', 'MARSBOT_PRO_V50'];
+/* FIX 4: Use MARSBOT_PRO_ID constant instead of the string literal 'MARSBOT_PRO_V50' */
+const STRATEGIES = ['HYBRID', 'EMA_STOCH', 'SMA_RSI', 'BB_SQUEEZE', 'RSI', 'EMA', 'BB', 'MACD', MARSBOT_PRO_ID];
 const STRATEGY_LABELS = {
   HYBRID: 'Hybrid (5-Indicator)',
   EMA_STOCH: 'EMA-Stoch Scalper',
@@ -839,7 +839,8 @@ const computeHybrid = (prices, cfg, isAuto) => {
   const m = calcMACD(prices, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
   const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
 
-  out.macdOk = m.bullish !== null ? true : false;
+  /* FIX 3: Removed premature macdOk assignment here. The correct assignment
+     happens below after direction is determined (out.macdOk = direction === macdDir). */
   out.atrSpike = atrData.spike;
   const w = cfg.weights;
   let callScore = 0, putScore = 0, callVotes = 0, putVotes = 0;
@@ -1068,7 +1069,10 @@ const computeEmaStoch = (prices, cfg) => {
   if (ema8 !== null && prices.length > 3) {
     const prevEma8 = calcEMA(prices.slice(0, -3), cfg.ema8Period || 8);
     const slopeOk = prevEma8 !== null && Math.abs(ema8 - prevEma8) > (cfg.slopeThreshold || 0.5);
-    out.components.slope = { dir: slopeOk ? 'CALL' : 'NEUTRAL', score: slopeOk ? 60 : 0 };
+    /* FIX 1: Use actual slope direction (CALL if rising, PUT if falling)
+       instead of always returning 'CALL' when slope is valid. */
+    const slopeDir = ema8 > prevEma8 ? 'CALL' : 'PUT';
+    out.components.slope = { dir: slopeOk ? slopeDir : 'NEUTRAL', score: slopeOk ? 60 : 0 };
   }
 
   // Determine direction: all conditions must align
@@ -1217,7 +1221,9 @@ const computeBbSqueeze = (prices, cfg) => {
 
   out.atrSpike = atrData.spike;
 
-  if (!bb.upper || !kc.upper) return out;
+  /* FIX 2: Use strict null/undefined check instead of falsy check.
+     bb.upper could be 0 (a valid value) and !0 would wrongly return early. */
+  if (bb.upper === null || bb.upper === undefined || kc.upper === null || kc.upper === undefined) return out;
 
   // Check for prior squeeze
   // Use the previous bar's data to see if squeeze was active BEFORE current bar
@@ -1342,7 +1348,10 @@ function _mbpAvgRange(prices, period) {
 }
 
 function _mbpNear(price, level, tolerance) {
-  if (!price || !level) return false;
+  /* FIX 5: Use strict null check instead of falsy check.
+     The original !price || !level would wrongly return false when price or level is 0,
+     which can happen with synthetic indices near zero. */
+  if (price == null || level == null) return false;
   return Math.abs(price - level) / price < tolerance;
 }
 
@@ -1388,11 +1397,13 @@ const computeMarsBotPro = (prices) => {
   out.components.zone   = { dir: _mbpNear(price, support, 0.002) ? 'CALL' : _mbpNear(price, resistance, 0.002) ? 'PUT' : 'NEUTRAL', score: (_mbpNear(price, support, 0.002) || _mbpNear(price, resistance, 0.002)) ? 80 : 0 };
   out.components.vol    = { dir: volatilityOK ? 'CALL' : 'NEUTRAL', score: volatilityOK ? 60 : 0 };
 
+  /* FIX 6: Changed second 'if' to 'else if' to prevent both CALL and PUT being
+     set in the same evaluation when both uptrend and downtrend conditions could
+     theoretically overlap (e.g. rsiOffset changes thresholds). */
   if (uptrend && rsi < baseOversold && _mbpNear(price, support, 0.002) && volatilityOK) {
     confidence = 75;
     signal = 'CALL';
-  }
-  if (downtrend && rsi > baseOverbought && _mbpNear(price, resistance, 0.002) && volatilityOK) {
+  } else if (downtrend && rsi > baseOverbought && _mbpNear(price, resistance, 0.002) && volatilityOK) {
     confidence = 75;
     signal = 'PUT';
   }
@@ -2914,7 +2925,7 @@ const App = () => {
           martiFactor={martiFactor} setMartiFactor={setMartiFactor}
           maxMartiSteps={maxMartiSteps} setMaxMartiSteps={setMaxMartiSteps}
           dalUnit={dalUnit} setDalUnit={setDalUnit}
-          revMartiMax={revMartiMax} setRevMartiMax={setRevMartiMax}
+          revMartiMax={revMartiMax} setRevMartiMax={setMaxMartiSteps}
           currentStake={currentStake} martiStep={martiStep}
           profitTarget={profitTarget} setProfitTarget={setProfitTarget}
           lossLimit={lossLimit} setLossLimit={setLossLimit}
