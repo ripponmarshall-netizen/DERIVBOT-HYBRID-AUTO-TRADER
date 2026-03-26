@@ -2045,7 +2045,7 @@ const LogsTab = ({ logs }) => (
 );
 
 /* ================================================================
-   SECTION 10: MAIN APP COMPONENT
+   SECTION 10: APP COMPONENT
    ================================================================ */
 
 const App = () => {
@@ -2061,8 +2061,6 @@ const App = () => {
   const [backtestResult, setBTResult] = useState(null);
   const [btRunning, setBTRunning] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
-
-  // Settings
   const [token, setToken] = useState('');
   const [symbol, setSymbol] = useState('R_50');
   const [durKey, setDurKey] = useState(DEFAULT_DUR_KEY);
@@ -2082,8 +2080,6 @@ const App = () => {
   const [macdGateEnabled, setMacdGateEnabled] = useState(true);
   const [minStrength, setMinStrength] = useState(70);
   const [running, setRunning] = useState(false);
-
-  // Session
   const [sessionPnL, setSessionPnL] = useState(0);
   const [sessionTrades, setSessionTrades] = useState(0);
   const [sessionWins, setSessionWins] = useState(0);
@@ -2098,7 +2094,6 @@ const App = () => {
   const [currentStake, setCurrentStake] = useState(1);
   const [martiStep, setMartiStep] = useState(0);
 
-  // Refs
   const wsRef = useRef(null);
   const pingRef = useRef(null);
   const reconnectCount = useRef(0);
@@ -2128,13 +2123,23 @@ const App = () => {
   const consLossesRef = useRef(0);
   const cooldownEndRef = useRef(null);
   const sessionStoppedRef = useRef(false);
+  /* CHANGE 1: Add openContractRef to avoid stale closure bugs */
+  const openContractRef = useRef(null);
+  const contractSafetyTimer = useRef(null);
   const durKeyRef = useRef(DEFAULT_DUR_KEY);
   const isBuyingRef = useRef(false);
   const pendingBuyId = useRef(null);
   const contractSubId = useRef(null);
   const tickSubId = useRef(null);
 
-  // Sync state to refs
+  const addLog = useCallback((msg, level = 'info') => {
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    setLogs(prev => {
+      const next = [{ time, msg, level }, ...prev];
+      return next.length > MAX_LOGS ? next.slice(0, MAX_LOGS) : next;
+    });
+  }, []);
+
   useEffect(() => { pricesRef.current = prices; }, [prices]);
   useEffect(() => { runningRef.current = running; }, [running]);
   useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
@@ -2162,24 +2167,14 @@ const App = () => {
   useEffect(() => { sessionStoppedRef.current = sessionStopped; }, [sessionStopped]);
   useEffect(() => { durKeyRef.current = durKey; }, [durKey]);
   useEffect(() => { isBuyingRef.current = isBuying; }, [isBuying]);
+  /* CHANGE 2: Sync openContractRef so callbacks always see the latest value */
+  useEffect(() => { openContractRef.current = openContract; }, [openContract]);
 
-  const addLog = useCallback((msg, level = 'info') => {
-    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-    setLogs(prev => {
-      const next = [{ time, msg, level }, ...prev];
-      return next.length > MAX_LOGS ? next.slice(0, MAX_LOGS) : next;
-    });
-  }, []);
+  const priceSpark = useMemo(() => prices.slice(-80), [prices]);
 
-  useEffect(() => {
-    if (!cooldownEnd) { setCooldownRemain(0); return; }
-    const iv = setInterval(() => {
-      const rem = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000));
-      setCooldownRemain(rem);
-      if (rem <= 0) { setCooldownEnd(null); cooldownEndRef.current = null; addLog('Cooldown ended, resuming', 'success'); }
-    }, 500);
-    return () => clearInterval(iv);
-  }, [cooldownEnd, addLog]);
+  const sessionWinRate = useMemo(() => {
+    return sessionTrades > 0 ? Math.round((sessionWins / sessionTrades) * 100) : 0;
+  }, [sessionTrades, sessionWins]);
 
   const wsSend = useCallback((data) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -2196,6 +2191,32 @@ const App = () => {
     wsSend({ ticks: sym, subscribe: 1 });
     addLog(`Subscribed to ${sym} ticks`, 'info');
   }, [wsSend, unsubTicks, addLog]);
+
+  const resetSession = useCallback(() => {
+    setSessionPnL(0); sessionPnLRef.current = 0;
+    setSessionTrades(0); sessionTradesRef.current = 0;
+    setSessionWins(0);
+    setBestTrade(0); setWorstTrade(0);
+    setWinStreak(0); setMaxWinStreak(0);
+    setConsLosses(0); consLossesRef.current = 0;
+    setCooldownEnd(null); cooldownEndRef.current = null;
+    setSessionStopped(false); sessionStoppedRef.current = false;
+    setCurrentStake(parseFloat(stake) || 1); currentStakeRef.current = parseFloat(stake) || 1;
+    setMartiStep(0); martiStepRef.current = 0;
+    addLog('Session reset', 'info');
+  }, [stake, addLog]);
+
+  const toggleRunning = useCallback(() => {
+    if (connStatus !== 'connected') { addLog('Connect first', 'warn'); return; }
+    const next = !running;
+    setRunning(next); runningRef.current = next;
+    if (next) {
+      setSessionStopped(false); sessionStoppedRef.current = false;
+      addLog(`Bot STARTED — ${strategy} / ${autoMode ? 'Auto' : 'Manual'} / ${mmSystem}`, 'success');
+    } else {
+      addLog('Bot STOPPED', 'warn');
+    }
+  }, [connStatus, running, strategy, autoMode, mmSystem, addLog]);
 
   const placeTrade = useCallback((direction) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -2226,6 +2247,27 @@ const App = () => {
     if (soundOnRef.current) sounds.signal();
   }, [wsSend, addLog]);
 
+  const manualTrade = useCallback((dir) => {
+    if (connStatus !== 'connected') { addLog('Not connected', 'warn'); return; }
+    if (!running) { addLog('Start bot first', 'warn'); return; }
+    placeTrade(dir);
+  }, [connStatus, running, placeTrade, addLog]);
+
+  const doBacktest = useCallback(() => {
+    const p = pricesRef.current;
+    if (p.length < 80) { addLog('Need at least 80 ticks for backtest', 'warn'); return; }
+    setBTRunning(true);
+    addLog('Running backtest...', 'info');
+    setTimeout(() => {
+      const result = runBacktest(p, strategy, symbol, true);
+      setBTResult(result);
+      setBTRunning(false);
+      addLog(`Backtest done: ${result.trades.length} trades, ${result.wins}W/${result.losses}L, P&L: ${result.totalPnL.toFixed(2)}`, 'success');
+    }, 50);
+  }, [strategy, symbol, addLog]);
+
+  /* CHANGE 3 note: no stale `openContract` pattern found in evalSignal — existing
+     isBuyingRef.current guard is already ref-safe. */
   const evalSignal = useCallback(() => {
     const p = pricesRef.current;
     if (p.length < 40) return;
@@ -2244,7 +2286,8 @@ const App = () => {
     if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return;
     if (isBuyingRef.current) return;
 
-    if (autoModeRef.current) placeTrade(sig.direction);
+    /* CHANGE 4: Also block auto-trade when a contract is already open (race condition fix) */
+    if (autoModeRef.current && !openContractRef.current) placeTrade(sig.direction);
   }, [placeTrade]);
 
   const handleContractUpdate = useCallback((data) => {
@@ -2422,6 +2465,27 @@ const App = () => {
     if (data.msg_type === 'ping') { /* keep alive */ }
   }, [addLog, wsSend, subTicks, evalSignal, handleContractUpdate]);
 
+  /* CHANGE 5: Clear all stale state on disconnect to prevent ghost contracts / double-buys */
+  const disconnect = useCallback(() => {
+    reconnectCount.current = MAX_RECONNECT;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    if (pingRef.current) clearInterval(pingRef.current);
+    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null; }
+    setConnStatus('disconnected');
+    setRunning(false); runningRef.current = false;
+    setIsBuying(false); isBuyingRef.current = false;
+    setOpenContract(null);
+    openContractRef.current = null;
+    isBuyingRef.current = false;
+    setIsBuying(false);
+    if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
+    tickSubId.current = null;
+    contractSubId.current = null;
+    setPrices([]); pricesRef.current = [];
+    setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
+    addLog('Disconnected', 'info');
+  }, [addLog]);
+
   const connect = useCallback(() => {
     if (!token.trim()) { addLog('Enter API token first', 'warn'); return; }
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
@@ -2459,18 +2523,15 @@ const App = () => {
     ws.onerror = () => addLog('WebSocket error', 'error');
   }, [token, handleMessage, addLog]);
 
-  const disconnect = useCallback(() => {
-    reconnectCount.current = MAX_RECONNECT;
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    if (pingRef.current) clearInterval(pingRef.current);
-    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null; }
-    setConnStatus('disconnected');
-    setRunning(false); runningRef.current = false;
-    setIsBuying(false); isBuyingRef.current = false;
-    setPrices([]); pricesRef.current = [];
-    setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
-    addLog('Disconnected', 'info');
-  }, [addLog]);
+  useEffect(() => {
+    if (!cooldownEnd) { setCooldownRemain(0); return; }
+    const iv = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000));
+      setCooldownRemain(rem);
+      if (rem <= 0) { setCooldownEnd(null); cooldownEndRef.current = null; addLog('Cooldown ended, resuming', 'success'); }
+    }, 500);
+    return () => clearInterval(iv);
+  }, [cooldownEnd, addLog]);
 
   useEffect(() => {
     if (connStatus === 'connected') {
@@ -2479,62 +2540,6 @@ const App = () => {
       subTicks(symbol);
     }
   }, [symbol, connStatus, subTicks]);
-
-  useEffect(() => {
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-      if (pingRef.current) clearInterval(pingRef.current);
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    };
-  }, []);
-
-  const toggleRunning = useCallback(() => {
-    if (connStatus !== 'connected') { addLog('Connect first', 'warn'); return; }
-    const next = !running;
-    setRunning(next); runningRef.current = next;
-    if (next) {
-      setSessionStopped(false); sessionStoppedRef.current = false;
-      addLog(`Bot STARTED — ${strategy} / ${autoMode ? 'Auto' : 'Manual'} / ${mmSystem}`, 'success');
-    } else {
-      addLog('Bot STOPPED', 'warn');
-    }
-  }, [connStatus, running, strategy, autoMode, mmSystem, addLog]);
-
-  const resetSession = useCallback(() => {
-    setSessionPnL(0); sessionPnLRef.current = 0;
-    setSessionTrades(0); sessionTradesRef.current = 0;
-    setSessionWins(0);
-    setBestTrade(0); setWorstTrade(0);
-    setWinStreak(0); setMaxWinStreak(0);
-    setConsLosses(0); consLossesRef.current = 0;
-    setCooldownEnd(null); cooldownEndRef.current = null;
-    setSessionStopped(false); sessionStoppedRef.current = false;
-    setCurrentStake(parseFloat(stake) || 1); currentStakeRef.current = parseFloat(stake) || 1;
-    setMartiStep(0); martiStepRef.current = 0;
-    addLog('Session reset', 'info');
-  }, [stake, addLog]);
-
-  const doBacktest = useCallback(() => {
-    const p = pricesRef.current;
-    if (p.length < 80) { addLog('Need at least 80 ticks for backtest', 'warn'); return; }
-    setBTRunning(true);
-    addLog('Running backtest...', 'info');
-    setTimeout(() => {
-      const result = runBacktest(p, strategy, symbol, true);
-      setBTResult(result);
-      setBTRunning(false);
-      addLog(`Backtest done: ${result.trades.length} trades, ${result.wins}W/${result.losses}L, P&L: ${result.totalPnL.toFixed(2)}`, 'success');
-    }, 50);
-  }, [strategy, symbol, addLog]);
-
-  const manualTrade = useCallback((dir) => {
-    if (connStatus !== 'connected') { addLog('Not connected', 'warn'); return; }
-    if (!running) { addLog('Start bot first', 'warn'); return; }
-    placeTrade(dir);
-  }, [connStatus, running, placeTrade, addLog]);
-
-  const sessionWinRate = sessionTrades > 0 ? Math.round((sessionWins / sessionTrades) * 100) : 0;
-  const priceSpark = useMemo(() => prices.slice(-80), [prices]);
 
   return (
     <div id="root">
