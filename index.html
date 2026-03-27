@@ -314,7 +314,9 @@ const MARSBOT_PRO_CONFIG = Object.freeze({
 });
 
 // 🧠 Persistent AI State (localStorage-backed)
-const AI_STATE = JSON.parse(localStorage.getItem('marsbot_ai') || 'null') || {
+let _ai_saved = null;
+try { _ai_saved = JSON.parse(localStorage.getItem('marsbot_ai') || 'null'); } catch(e) {}
+const AI_STATE = _ai_saved || {
   wins: 0,
   losses: 0,
   rsiOffset: 0,
@@ -322,7 +324,7 @@ const AI_STATE = JSON.parse(localStorage.getItem('marsbot_ai') || 'null') || {
 };
 
 function saveAI() {
-  localStorage.setItem('marsbot_ai', JSON.stringify(AI_STATE));
+  try { localStorage.setItem('marsbot_ai', JSON.stringify(AI_STATE)); } catch(e) {}
 }
 
 function updateAI(result) {
@@ -829,8 +831,9 @@ const computeHybrid = (prices, cfg, isAuto) => {
     direction = 'PUT'; votes = putVotes; strength = totalWeight > 0 ? Math.min(100, Math.round(putScore / totalWeight)) : 0;
   }
 
-  const macdDir = m.bullish ? 'CALL' : 'PUT';
-  out.macdOk = direction === macdDir;
+  out.macdOk = m.macd === null
+    ? true
+    : direction === (m.bullish ? 'CALL' : 'PUT');
 
   if (emaT !== null) {
     const price = prices[prices.length - 1];
@@ -877,7 +880,7 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
       if (dir === 'PUT' && price > emaT) str = Math.round(str * 0.7);
     }
     const macdDir = m.bullish ? 'CALL' : 'PUT';
-    out.macdOk = dir === macdDir;
+    out.macdOk = m.macd === null ? true : dir === macdDir;
     if (!out.macdOk) dir = null;
     out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
     out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
@@ -903,7 +906,7 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
     out.atrSpike = atrData.spike;
     if (atrData.spike) str = Math.round(str * 0.6);
     const macdDir = m.bullish ? 'CALL' : 'PUT';
-    out.macdOk = dir === macdDir;
+    out.macdOk = m.macd === null ? true : dir === macdDir;
     if (!out.macdOk) dir = null;
     out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
     out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
@@ -922,7 +925,7 @@ const computeSingle = (strategy, prices, cfg, isAuto) => {
     out.components.bb = { dir: dir || 'NEUTRAL', score: str };
     if (stoch.k !== null) out.components.stochRSI = { dir: stoch.k < 30 ? 'CALL' : stoch.k > 70 ? 'PUT' : 'NEUTRAL', score: Math.round(Math.abs(stoch.k - 50)) };
     const macdDir = m.bullish ? 'CALL' : 'PUT';
-    out.macdOk = dir === macdDir;
+    out.macdOk = m.macd === null ? true : dir === macdDir;
     if (!out.macdOk) dir = null;
     out.direction = dir; out.strength = str; out.votes = dir ? 1 : 0;
     out.components.macd = { dir: macdDir, score: m.crossUp || m.crossDown ? 100 : 50 };
@@ -1971,6 +1974,7 @@ const App = () => {
   const pingRef = useRef(null);
   const reconnectCount = useRef(0);
   const reconnectTimer = useRef(null);
+  const connectRef = useRef(null); /* always holds latest connect fn */
   const pricesRef = useRef([]);
   const runningRef = useRef(false);
   const autoModeRef = useRef(true);
@@ -2194,8 +2198,11 @@ const App = () => {
 
       if (won) {
         setSessionWins(prev => prev + 1);
-        setWinStreak(prev => prev + 1);
-        setMaxWinStreak(prev => Math.max(prev, winStreak + 1));
+        setWinStreak(prev => {
+          const next = prev + 1;
+          setMaxWinStreak(ms => Math.max(ms, next));
+          return next;
+        });
         setConsLosses(0); consLossesRef.current = 0;
         setBestTrade(prev => Math.max(prev, profit));
         if (soundOnRef.current) sounds.win();
@@ -2275,7 +2282,7 @@ const App = () => {
       const startTime = poc.date_start;
       const buyPrice = parseFloat(poc.buy_price);
 
-      setOpenContract({
+      const liveContract = {
         type: poc.contract_type,
         entrySpot,
         currentSpot,
@@ -2284,9 +2291,11 @@ const App = () => {
         startTime,
         buyPrice,
         contract_id: poc.contract_id,
-      });
+      };
+      openContractRef.current = liveContract; /* sync ref immediately — avoids async gap */
+      setOpenContract(liveContract);
     }
-  }, [addLog, winStreak]);
+  }, [addLog]); /* winStreak removed — avoids stale closure, uses functional updater instead */
 
   const handleMessage = useCallback((data) => {
     if (data.msg_type === 'authorize') {
@@ -2394,12 +2403,14 @@ const App = () => {
       const delay = Math.min(1000 * Math.pow(2, reconnectCount.current), 30000);
       addLog(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectCount.current})`, 'warn');
       reconnectTimer.current = setTimeout(() => {
-        if (token.trim()) connect();
+        if (token.trim()) connectRef.current?.(); /* use ref to avoid stale closure */
       }, delay);
     };
 
     ws.onerror = () => addLog('WebSocket error', 'error');
   }, [token, handleMessage, addLog]);
+  /* Keep connectRef current so stale ws.onclose closures always call the latest connect */
+  useEffect(() => { connectRef.current = connect; }, [connect]);
 
   useEffect(() => {
     if (!cooldownEnd) { setCooldownRemain(0); return; }
