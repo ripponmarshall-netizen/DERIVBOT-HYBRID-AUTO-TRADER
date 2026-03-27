@@ -182,7 +182,6 @@ select.input-field { appearance: none; background-image: url("data:image/svg+xml
 .collapsible-header h3 { font-size: 13px; font-weight: 600; color: var(--text-bright); }
 .collapsible-chevron { transition: transform 0.2s; color: var(--muted); }
 .collapsible-chevron.open { transform: rotate(180deg); }
-.collapsible-body { overflow: hidden; transition: max-height 0.3s ease; }
 
 /* Pill — FIX #8: Up/Down UI labels */
 .pill {
@@ -460,10 +459,6 @@ const R50_CONFIG = {
     ...GENERIC_CONFIG.SMA_RSI,
     pullbackThreshold: 1.5,
     minSmaSep: 0.3,
-  },
-  BB_SQUEEZE: {
-    ...GENERIC_CONFIG.BB_SQUEEZE,
-    minSqueezeBars: 3,
   },
 };
 
@@ -1045,7 +1040,6 @@ const computeEmaStoch = (prices, cfg) => {
 
   const emaDir = out.components.ema?.dir;
   const stochDir = out.components.stoch?.dir;
-  const slopeOk = out.components.slope?.dir !== 'NEUTRAL';
 
   let dir = null, str = 0, votes = 0;
 
@@ -1174,7 +1168,7 @@ const computeBbSqueeze = (prices, cfg) => {
 
   const bb = calcBB(prices, bbPeriod);
   const kc = calcKeltnerChannels(prices, kcPeriod, kcAtrMulti, kcAtrPeriod);
-  const m = calcMACD(prices, cfg.macdFast || 12, cfg.macdSlow || 26, cfg.macdSignal || 9);
+  const m = macdGate(prices, cfg);
   const rsi = calcRSI(prices, cfg.rsiPeriod || 14);
   const atrData = calcATRAvg(prices, cfg.atrPeriod || 14, 50);
   const close = prices[prices.length - 1];
@@ -1844,19 +1838,18 @@ const SettingsTab = ({
     <Collapsible title="Connection" defaultOpen={connStatus !== 'connected'}>
       <div className="input-group">
         <label className="input-label">API Token</label>
-        <input className="input-field" type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Enter Deriv API token" />
+        <input className="input-field" type="password" placeholder="Deriv API Token" value={token} onChange={e => setToken(e.target.value)} />
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={connect} disabled={connStatus === 'connected'}>Connect</button>
-        <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={disconnect} disabled={connStatus === 'disconnected'}>Disconnect</button>
-      </div>
-      <div className="fs-11 text-muted mt-8">
-        Status: <span style={{ color: connStatus === 'connected' ? 'var(--primary)' : connStatus === 'connecting' ? 'var(--warning)' : 'var(--danger)' }}>
-          {connStatus.toUpperCase()}
-        </span>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={connect} disabled={connStatus === 'connected' || connStatus === 'connecting'}>
+          {connStatus === 'connecting' ? 'Connecting...' : 'Connect'}
+        </button>
+        <button className="btn btn-danger" style={{ flex: 1 }} onClick={disconnect} disabled={connStatus === 'disconnected'}>
+          Disconnect
+        </button>
       </div>
     </Collapsible>
-    <Collapsible title="Market" defaultOpen={true}>
+    <Collapsible title="Trading">
       <div className="input-group">
         <label className="input-label">Symbol</label>
         <select className="input-field" value={symbol} onChange={e => setSymbol(e.target.value)}>
@@ -1870,7 +1863,7 @@ const SettingsTab = ({
         </select>
       </div>
     </Collapsible>
-    <Collapsible title="Strategy" defaultOpen={true}>
+    <Collapsible title="Strategy">
       <div className="input-group">
         <label className="input-label">Strategy</label>
         <select className="input-field" value={strategy} onChange={e => setStrategy(e.target.value)}>
@@ -1878,21 +1871,11 @@ const SettingsTab = ({
         </select>
       </div>
       <Toggle label="Auto Mode" value={autoMode} onChange={setAutoMode} />
-      <Toggle label="MACD Gate" value={macdGateEnabled} onChange={setMacdGateEnabled} />
-      <div className="input-group mt-8">
-        <div className="flex-between">
-          <label className="input-label">Min Strength</label>
-          <span className="slider-value">{minStrength}%</span>
-        </div>
-        <div className="slider-wrap">
-          <input type="range" className="slider-input" min="50" max="95" step="1" value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value))} />
-        </div>
-      </div>
     </Collapsible>
-    <Collapsible title="Money Management" defaultOpen={true}>
+    <Collapsible title="Money Management">
       <div className="input-group">
         <label className="input-label">Base Stake ($)</label>
-        <input className="input-field" type="number" value={stake} onChange={e => setStake(e.target.value)} min="0.35" step="0.01" />
+        <input className="input-field" type="number" min="0.35" step="0.01" value={stake} onChange={e => setStake(e.target.value)} />
       </div>
       <div className="input-group">
         <label className="input-label">MM System</label>
@@ -1900,97 +1883,89 @@ const SettingsTab = ({
           {MM_SYSTEMS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
-      {(mmSystem === 'MARTINGALE' || mmSystem === 'REVERSE_MARTINGALE') && (
+      {mmSystem === 'MARTINGALE' && (
         <div className="input-group">
-          <div className="flex-between">
-            <label className="input-label">Multiplier</label>
-            <span className="slider-value">{martiFactor}x</span>
-          </div>
-          <div className="slider-wrap">
-            <input type="range" className="slider-input" min="1.5" max="4" step="0.5" value={martiFactor} onChange={e => setMartiFactor(parseFloat(e.target.value))} />
-          </div>
+          <label className="input-label">Martingale Factor</label>
+          <input className="input-field" type="number" min="1.1" step="0.1" value={martiFactor} onChange={e => setMartiFactor(e.target.value)} />
         </div>
       )}
       {mmSystem === 'DALEMBERT' && (
         <div className="input-group">
-          <div className="flex-between">
-            <label className="input-label">D'Alembert Unit ($)</label>
-            <span className="slider-value">${dalUnit}</span>
-          </div>
-          <div className="slider-wrap">
-            <input type="range" className="slider-input" min="0.1" max="2" step="0.1" value={dalUnit} onChange={e => setDalUnit(parseFloat(e.target.value))} />
-          </div>
+          <label className="input-label">D'Alembert Unit ($)</label>
+          <input className="input-field" type="number" min="0.01" step="0.01" value={dalUnit} onChange={e => setDalUnit(e.target.value)} />
         </div>
       )}
       {mmSystem === 'REVERSE_MARTINGALE' && (
         <div className="input-group">
-          <div className="flex-between">
-            <label className="input-label">Max Stake ($)</label>
-            <span className="slider-value">${revMartiMax}</span>
-          </div>
-          <div className="slider-wrap">
-            <input type="range" className="slider-input" min="2" max="50" step="1" value={revMartiMax} onChange={e => setRevMartiMax(parseFloat(e.target.value))} />
-          </div>
+          <label className="input-label">Max Win Steps</label>
+          <input className="input-field" type="number" min="1" step="1" value={revMartiMax} onChange={e => setRevMartiMax(e.target.value)} />
         </div>
       )}
     </Collapsible>
-    <Collapsible title="Risk Management" defaultOpen={false}>
+    <Collapsible title="Session Controls">
       <div className="input-group">
         <label className="input-label">Profit Target ($)</label>
-        <input className="input-field" type="number" value={profitTarget} onChange={e => setProfitTarget(e.target.value)} placeholder="e.g. 10" min="0" step="0.01" />
+        <input className="input-field" type="number" min="0" step="0.01" placeholder="Optional" value={profitTarget} onChange={e => setProfitTarget(e.target.value)} />
       </div>
       <div className="input-group">
         <label className="input-label">Loss Limit ($)</label>
-        <input className="input-field" type="number" value={lossLimit} onChange={e => setLossLimit(e.target.value)} placeholder="e.g. 20" min="0" step="0.01" />
+        <input className="input-field" type="number" min="0" step="0.01" placeholder="Optional" value={lossLimit} onChange={e => setLossLimit(e.target.value)} />
       </div>
       <div className="input-group">
         <label className="input-label">Max Trades</label>
-        <input className="input-field" type="number" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} placeholder="e.g. 50" min="0" step="1" />
+        <input className="input-field" type="number" min="0" step="1" placeholder="Optional" value={maxTrades} onChange={e => setMaxTrades(e.target.value)} />
+      </div>
+    </Collapsible>
+    <Collapsible title="Cooldown">
+      <div className="input-group">
+        <label className="input-label">Trigger (consecutive losses)</label>
+        <input className="input-field" type="number" min="1" step="1" value={cooldownLosses} onChange={e => setCooldownLosses(e.target.value)} />
       </div>
       <div className="input-group">
-        <div className="flex-between">
-          <label className="input-label">Cooldown After Losses</label>
-          <span className="slider-value">{cooldownLosses}</span>
-        </div>
-        <div className="slider-wrap">
-          <input type="range" className="slider-input" min="1" max="10" step="1" value={cooldownLosses} onChange={e => setCooldownLosses(parseInt(e.target.value))} />
-        </div>
+        <label className="input-label">Duration (seconds)</label>
+        <input className="input-field" type="number" min="10" step="10" value={cooldownSecs} onChange={e => setCooldownSecs(e.target.value)} />
       </div>
-      <div className="input-group">
-        <div className="flex-between">
-          <label className="input-label">Cooldown Duration (s)</label>
-          <span className="slider-value">{cooldownSecs}s</span>
+    </Collapsible>
+    <Collapsible title="Signal Filters">
+      <Toggle label="MACD Gate" value={macdGateEnabled} onChange={setMacdGateEnabled} />
+      <div className="input-group mt-8">
+        <div className="flex-between mb-8">
+          <label className="input-label" style={{ marginBottom: 0 }}>Min Strength</label>
+          <span className="slider-value">{minStrength}%</span>
         </div>
         <div className="slider-wrap">
-          <input type="range" className="slider-input" min="0" max="300" step="10" value={cooldownSecs} onChange={e => setCooldownSecs(parseInt(e.target.value))} />
+          <input className="slider-input" type="range" min="50" max="95" step="5" value={minStrength} onChange={e => setMinStrength(parseInt(e.target.value))} />
         </div>
       </div>
     </Collapsible>
-    <Collapsible title="Sound" defaultOpen={false}>
+    <Collapsible title="Sound">
       <Toggle label="Sound Effects" value={soundOn} onChange={setSoundOn} />
     </Collapsible>
-    <div className="footer-attr" style={{ marginTop: 16 }}>
-      <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Built with Perplexity Computer</a>
-    </div>
   </div>
 );
 
-const LogsTab = ({ logs }) => (
+const LogsTab = ({ logs, clearLogs }) => (
   <div>
     <div className="card">
-      <div className="card-title">System Logs ({logs.length})</div>
+      <div className="flex-between mb-8">
+        <div className="card-title" style={{ marginBottom: 0 }}>System Log ({logs.length})</div>
+        <button className="btn btn-outline btn-sm" onClick={clearLogs}>Clear</button>
+      </div>
       {logs.length === 0 ? (
         <div className="fs-12 text-muted text-center" style={{ padding: 20 }}>No logs yet</div>
       ) : (
-        <div style={{ maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' }}>
-          {logs.map((l, i) => (
+        <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+          {logs.map((e, i) => (
             <div key={i} className="log-entry">
-              <span className="log-time">{l.time}</span>
-              <span className={`log-msg log-${l.level}`}>{l.msg}</span>
+              <span className="log-time">{e.time}</span>
+              <span className={`log-msg log-${e.level}`}>{e.msg}</span>
             </div>
           ))}
         </div>
       )}
+    </div>
+    <div className="footer-attr">
+      <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Built with Perplexity Computer</a>
     </div>
   </div>
 );
@@ -2000,15 +1975,14 @@ const LogsTab = ({ logs }) => (
    ================================================================ */
 
 const App = () => {
-  const [tab, setTab] = useState('signal');
   const [connStatus, setConnStatus] = useState('disconnected');
   const [balance, setBalance] = useState(null);
-  const [currency, setCurrency] = useState('USD');
   const [prices, setPrices] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [signal, setSignal] = useState({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
-  const [trades, setTrades] = useState(() => loadStoredTrades());
   const [openContract, setOpenContract] = useState(null);
+  const [trades, setTrades] = useState(loadStoredTrades());
+  const [logs, setLogs] = useState([]);
+  const [tab, setTab] = useState('signal');
   const [backtestResult, setBTResult] = useState(null);
   const [btRunning, setBTRunning] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
@@ -2016,18 +1990,18 @@ const App = () => {
   const [symbol, setSymbol] = useState('R_50');
   const [durKey, setDurKey] = useState(DEFAULT_DUR_KEY);
   const [strategy, setStrategy] = useState('HYBRID');
-  const [autoMode, setAutoMode] = useState(false);
+  const [autoMode, setAutoMode] = useState(true);
   const [stake, setStake] = useState('1');
   const [mmSystem, setMMSystem] = useState('FLAT');
-  const [martiFactor, setMartiFactor] = useState(2);
-  const [dalUnit, setDalUnit] = useState(0.5);
-  const [revMartiMax, setRevMartiMax] = useState(10);
+  const [martiFactor, setMartiFactor] = useState('2');
+  const [dalUnit, setDalUnit] = useState('1');
+  const [revMartiMax, setRevMartiMax] = useState('3');
   const [soundOn, setSoundOn] = useState(true);
   const [profitTarget, setProfitTarget] = useState('');
   const [lossLimit, setLossLimit] = useState('');
   const [maxTrades, setMaxTrades] = useState('');
-  const [cooldownLosses, setCooldownLosses] = useState(3);
-  const [cooldownSecs, setCooldownSecs] = useState(30);
+  const [cooldownLosses, setCooldownLosses] = useState('3');
+  const [cooldownSecs, setCooldownSecs] = useState('60');
   const [macdGateEnabled, setMacdGateEnabled] = useState(true);
   const [minStrength, setMinStrength] = useState(70);
   const [running, setRunning] = useState(false);
@@ -2039,9 +2013,9 @@ const App = () => {
   const [winStreak, setWinStreak] = useState(0);
   const [maxWinStreak, setMaxWinStreak] = useState(0);
   const [consLosses, setConsLosses] = useState(0);
+  const [sessionStopped, setSessionStopped] = useState(false);
   const [cooldownEnd, setCooldownEnd] = useState(null);
   const [cooldownRemain, setCooldownRemain] = useState(0);
-  const [sessionStopped, setSessionStopped] = useState(false);
   const [currentStake, setCurrentStake] = useState(1);
   const [martiStep, setMartiStep] = useState(0);
 
@@ -2051,26 +2025,27 @@ const App = () => {
   const reconnectTimer = useRef(null);
   const pricesRef = useRef([]);
   const runningRef = useRef(false);
-  const autoModeRef = useRef(false);
+  const autoModeRef = useRef(true);
   const strategyRef = useRef('HYBRID');
   const symbolRef = useRef('R_50');
-  const stakeRef = useRef(1);
-  const currentStakeRef = useRef(1);
+  const durKeyRef2 = useRef(DEFAULT_DUR_KEY);
+  const stakeRef = useRef('1');
   const mmSystemRef = useRef('FLAT');
-  const martiFactorRef = useRef(2);
-  const dalUnitRef = useRef(0.5);
-  const revMartiMaxRef = useRef(10);
-  const martiStepRef = useRef(0);
+  const martiFactorRef = useRef('2');
+  const dalUnitRef = useRef('1');
+  const revMartiMaxRef = useRef('3');
   const soundOnRef = useRef(true);
   const profitTargetRef = useRef('');
   const lossLimitRef = useRef('');
   const maxTradesRef = useRef('');
-  const cooldownLossesRef = useRef(3);
-  const cooldownSecsRef = useRef(30);
+  const cooldownLossesRef = useRef('3');
+  const cooldownSecsRef = useRef('60');
   const macdGateEnabledRef = useRef(true);
   const minStrengthRef = useRef(70);
   const sessionPnLRef = useRef(0);
   const sessionTradesRef = useRef(0);
+  const currentStakeRef = useRef(1);
+  const martiStepRef = useRef(0);
   const consLossesRef = useRef(0);
   const cooldownEndRef = useRef(null);
   const sessionStoppedRef = useRef(false);
@@ -2096,13 +2071,11 @@ const App = () => {
   useEffect(() => { autoModeRef.current = autoMode; }, [autoMode]);
   useEffect(() => { strategyRef.current = strategy; }, [strategy]);
   useEffect(() => { symbolRef.current = symbol; }, [symbol]);
-  useEffect(() => { stakeRef.current = parseFloat(stake) || 1; }, [stake]);
-  useEffect(() => { currentStakeRef.current = currentStake; }, [currentStake]);
+  useEffect(() => { stakeRef.current = stake; }, [stake]);
   useEffect(() => { mmSystemRef.current = mmSystem; }, [mmSystem]);
   useEffect(() => { martiFactorRef.current = martiFactor; }, [martiFactor]);
   useEffect(() => { dalUnitRef.current = dalUnit; }, [dalUnit]);
   useEffect(() => { revMartiMaxRef.current = revMartiMax; }, [revMartiMax]);
-  useEffect(() => { martiStepRef.current = martiStep; }, [martiStep]);
   useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
   useEffect(() => { profitTargetRef.current = profitTarget; }, [profitTarget]);
   useEffect(() => { lossLimitRef.current = lossLimit; }, [lossLimit]);
@@ -2111,10 +2084,6 @@ const App = () => {
   useEffect(() => { cooldownSecsRef.current = cooldownSecs; }, [cooldownSecs]);
   useEffect(() => { macdGateEnabledRef.current = macdGateEnabled; }, [macdGateEnabled]);
   useEffect(() => { minStrengthRef.current = minStrength; }, [minStrength]);
-  useEffect(() => { sessionPnLRef.current = sessionPnL; }, [sessionPnL]);
-  useEffect(() => { sessionTradesRef.current = sessionTrades; }, [sessionTrades]);
-  useEffect(() => { consLossesRef.current = consLosses; }, [consLosses]);
-  useEffect(() => { cooldownEndRef.current = cooldownEnd; }, [cooldownEnd]);
   useEffect(() => { sessionStoppedRef.current = sessionStopped; }, [sessionStopped]);
   useEffect(() => { durKeyRef.current = durKey; }, [durKey]);
   useEffect(() => { isBuyingRef.current = isBuying; }, [isBuying]);
@@ -2135,6 +2104,7 @@ const App = () => {
 
   const unsubTicks = useCallback(() => {
     if (tickSubId.current) { wsSend({ forget: tickSubId.current }); tickSubId.current = null; }
+    if (contractSubId.current) { wsSend({ forget: contractSubId.current }); contractSubId.current = null; }
   }, [wsSend]);
 
   const subTicks = useCallback((sym) => {
@@ -2172,29 +2142,28 @@ const App = () => {
   const placeTrade = useCallback((direction) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     if (sessionStoppedRef.current) { addLog('Session stopped — trade blocked', 'warn'); return; }
-    if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) { addLog('Cooldown active — trade blocked', 'warn'); return; }
-    if (isBuyingRef.current) { addLog('Trade already in progress', 'warn'); return; }
+    if (isBuyingRef.current) { addLog('Buy already in progress', 'warn'); return; }
+    if (openContractRef.current) { addLog('Contract already open', 'warn'); return; }
 
     const dur = parseDurKey(durKeyRef.current);
-    const amount = currentStakeRef.current;
-    const req = {
-      buy: 1,
-      price: amount,
-      parameters: {
-        contract_type: direction === 'CALL' ? 'CALL' : 'PUT',
-        symbol: symbolRef.current,
-        duration: dur.value,
-        duration_unit: dur.unit,
-        basis: 'stake',
-        amount: amount,
-        currency: 'USD',
-      },
+    const stakeVal = currentStakeRef.current;
+
+    setIsBuying(true); isBuyingRef.current = true;
+
+    const proposal = {
+      proposal: 1,
+      amount: stakeVal,
+      basis: 'stake',
+      contract_type: direction,
+      currency: 'USD',
+      duration: dur.value,
+      duration_unit: dur.unit,
+      symbol: symbolRef.current,
+      subscribe: 1,
     };
-    setIsBuying(true);
-    isBuyingRef.current = true;
-    pendingBuyId.current = Date.now();
-    wsSend(req);
-    addLog(`Trade placed: ${dirLabel(direction)} ${symbolRef.current} $${amount.toFixed(2)} (${dur.label})`, 'info');
+
+    pendingBuyId.current = `${Date.now()}`;
+    wsSend(proposal);
     if (soundOnRef.current) sounds.signal();
   }, [wsSend, addLog]);
 
@@ -2222,18 +2191,17 @@ const App = () => {
   const evalSignal = useCallback(() => {
     const p = pricesRef.current;
     if (p.length < 40) return;
-    const sig = getSignal(strategyRef.current, p, symbolRef.current, autoModeRef.current);
+    if (!runningRef.current) return;
+    if (sessionStoppedRef.current) return;
 
-    if (sig.direction && sig.strength < minStrengthRef.current) sig.direction = null;
-    if (sig.direction && macdGateEnabledRef.current && !sig.macdOk &&
-        strategyRef.current !== 'EMA_STOCH' && strategyRef.current !== 'SMA_RSI') {
-      sig.direction = null;
-    }
+    const sig = getSignal(strategyRef.current, p, symbolRef.current, autoModeRef.current);
 
     setSignal(sig);
 
-    if (!sig.direction || !runningRef.current) return;
-    if (sessionStoppedRef.current) return;
+    if (!sig.direction) return;
+    if (macdGateEnabledRef.current && !sig.macdOk) return;
+    if (sig.strength < minStrengthRef.current) return;
+
     if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return;
     if (isBuyingRef.current) return;
 
@@ -2242,178 +2210,189 @@ const App = () => {
   }, [placeTrade]);
 
   const handleContractUpdate = useCallback((data) => {
-    const c = data.proposal_open_contract;
-    if (!c) return;
+    if (!data.proposal_open_contract) return;
+    const poc = data.proposal_open_contract;
 
-    if (c.is_sold || c.status === 'sold') {
-      const pnl = parseFloat(c.profit) || 0;
-      const won = pnl > 0;
-      setIsBuying(false);
-      isBuyingRef.current = false;
+    if (poc.is_sold || poc.status === 'sold') {
+      const won = poc.profit > 0;
+      const profit = parseFloat(poc.profit) || 0;
+      const stakeUsed = parseFloat(poc.buy_price) || currentStakeRef.current;
 
-      const tradeRecord = {
-        id: c.contract_id,
+      setOpenContract(null);
+      openContractRef.current = null;
+      if (contractSafetyTimer.current) { clearTimeout(contractSafetyTimer.current); contractSafetyTimer.current = null; }
+      setIsBuying(false); isBuyingRef.current = false;
+
+      updateAI(won ? 'win' : 'loss');
+
+      const newTrade = {
+        id: poc.contract_id,
         time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        symbol: c.underlying || symbolRef.current,
-        direction: c.contract_type === 'CALL' ? 'CALL' : 'PUT',
+        symbol: symbolRef.current,
+        direction: poc.contract_type === 'CALL' ? 'CALL' : 'PUT',
         strategy: strategyRef.current,
-        stake: parseFloat(c.buy_price) || currentStakeRef.current,
+        stake: stakeUsed,
+        profit,
         won,
-        profit: pnl,
-        strength: 0,
         macdOk: true,
+        strength: 0,
       };
 
-      setTrades(prev => addTradeDeduped(prev, tradeRecord));
-      setOpenContract(null);
+      setTrades(prev => addTradeDeduped(prev, newTrade));
 
-      if (contractSubId.current) { wsSend({ forget: contractSubId.current }); contractSubId.current = null; }
-
-      if (strategyRef.current === MARSBOT_PRO_ID) updateAI(won ? 'win' : 'loss');
-
-      const newPnL = sessionPnLRef.current + pnl;
-      const newTradeCount = sessionTradesRef.current + 1;
+      const newPnL = sessionPnLRef.current + profit;
       setSessionPnL(newPnL); sessionPnLRef.current = newPnL;
-      setSessionTrades(newTradeCount); sessionTradesRef.current = newTradeCount;
+      setSessionTrades(prev => { sessionTradesRef.current = prev + 1; return prev + 1; });
 
       if (won) {
         setSessionWins(prev => prev + 1);
-        setWinStreak(prev => { const n = prev + 1; setMaxWinStreak(m => Math.max(m, n)); return n; });
+        setWinStreak(prev => prev + 1);
+        setMaxWinStreak(prev => Math.max(prev, winStreak + 1));
         setConsLosses(0); consLossesRef.current = 0;
-        setBestTrade(prev => Math.max(prev, pnl));
-        addLog(`WIN +$${pnl.toFixed(2)}`, 'success');
+        setBestTrade(prev => Math.max(prev, profit));
         if (soundOnRef.current) sounds.win();
+        addLog(`WIN +$${profit.toFixed(2)} | ${dirLabel(newTrade.direction)}`, 'success');
       } else {
         setWinStreak(0);
         const newConsLosses = consLossesRef.current + 1;
         setConsLosses(newConsLosses); consLossesRef.current = newConsLosses;
-        setWorstTrade(prev => Math.min(prev, pnl));
-        addLog(`LOSS -$${Math.abs(pnl).toFixed(2)}`, 'error');
+        setWorstTrade(prev => Math.min(prev, profit));
         if (soundOnRef.current) sounds.loss();
-        if (newConsLosses >= cooldownLossesRef.current && cooldownSecsRef.current > 0) {
-          const end = Date.now() + cooldownSecsRef.current * 1000;
-          setCooldownEnd(end); cooldownEndRef.current = end;
-          addLog(`Cooldown activated: ${cooldownSecsRef.current}s after ${newConsLosses} consecutive losses`, 'warn');
+        addLog(`LOSS $${profit.toFixed(2)} | ${dirLabel(newTrade.direction)}`, 'error');
+
+        const clTrigger = parseInt(cooldownLossesRef.current) || 3;
+        if (newConsLosses >= clTrigger) {
+          const cdSecs = parseInt(cooldownSecsRef.current) || 60;
+          const endTime = Date.now() + cdSecs * 1000;
+          setCooldownEnd(endTime); cooldownEndRef.current = endTime;
+          addLog(`Cooldown started: ${cdSecs}s after ${newConsLosses} losses`, 'warn');
+          setConsLosses(0); consLossesRef.current = 0;
         }
       }
 
       // Money management
-      const baseStake = stakeRef.current;
-      let nextStake = baseStake;
       const mm = mmSystemRef.current;
-
+      const baseStake = parseFloat(stakeRef.current) || 1;
       if (mm === 'FLAT') {
-        nextStake = baseStake;
+        setCurrentStake(baseStake); currentStakeRef.current = baseStake;
       } else if (mm === 'MARTINGALE') {
-        /* CRIT-FIX: Cap Martingale at MAX_MARTINGALE_STEP to prevent runaway losses */
         if (won) {
-          nextStake = baseStake;
+          setCurrentStake(baseStake); currentStakeRef.current = baseStake;
           setMartiStep(0); martiStepRef.current = 0;
         } else {
-          const rawNextStep = martiStepRef.current + 1;
-          const newStep = Math.min(rawNextStep, MAX_MARTINGALE_STEP);
-          if (rawNextStep > MAX_MARTINGALE_STEP) {
-            addLog('Martingale capped at step ' + MAX_MARTINGALE_STEP, 'warn');
-          }
-          setMartiStep(newStep); martiStepRef.current = newStep;
-          nextStake = baseStake * Math.pow(martiFactorRef.current, newStep);
+          const nextStep = Math.min(martiStepRef.current + 1, MAX_MARTINGALE_STEP);
+          const factor = parseFloat(martiFactorRef.current) || 2;
+          const nextStake = parseFloat((baseStake * Math.pow(factor, nextStep)).toFixed(2));
+          setCurrentStake(nextStake); currentStakeRef.current = nextStake;
+          setMartiStep(nextStep); martiStepRef.current = nextStep;
         }
       } else if (mm === 'DALEMBERT') {
+        const unit = parseFloat(dalUnitRef.current) || 1;
         if (won) {
-          nextStake = Math.max(baseStake, currentStakeRef.current - dalUnitRef.current);
+          const next = Math.max(baseStake, currentStakeRef.current - unit);
+          setCurrentStake(next); currentStakeRef.current = next;
         } else {
-          nextStake = currentStakeRef.current + dalUnitRef.current;
+          const next = currentStakeRef.current + unit;
+          setCurrentStake(next); currentStakeRef.current = next;
         }
       } else if (mm === 'REVERSE_MARTINGALE') {
-        if (won) {
-          nextStake = Math.min(currentStakeRef.current * martiFactorRef.current, revMartiMaxRef.current);
+        const maxSteps = parseInt(revMartiMaxRef.current) || 3;
+        if (won && martiStepRef.current < maxSteps) {
+          const factor = parseFloat(martiFactorRef.current) || 2;
+          const nextStep = martiStepRef.current + 1;
+          const nextStake = parseFloat((baseStake * Math.pow(factor, nextStep)).toFixed(2));
+          setCurrentStake(nextStake); currentStakeRef.current = nextStake;
+          setMartiStep(nextStep); martiStepRef.current = nextStep;
         } else {
-          nextStake = baseStake;
+          setCurrentStake(baseStake); currentStakeRef.current = baseStake;
+          setMartiStep(0); martiStepRef.current = 0;
         }
       }
 
-      nextStake = Math.round(nextStake * 100) / 100;
-      setCurrentStake(nextStake); currentStakeRef.current = nextStake;
-
-      const pt = parseFloat(profitTargetRef.current);
-      const ll = parseFloat(lossLimitRef.current);
-      const mt = parseInt(maxTradesRef.current);
-
-      if (pt && newPnL >= pt) {
+      // Session stop checks
+      const ptVal = parseFloat(profitTargetRef.current);
+      const llVal = parseFloat(lossLimitRef.current);
+      const mtVal = parseInt(maxTradesRef.current);
+      if ((ptVal && newPnL >= ptVal) || (llVal && newPnL <= -Math.abs(llVal)) || (mtVal && sessionTradesRef.current >= mtVal)) {
         setSessionStopped(true); sessionStoppedRef.current = true;
         setRunning(false); runningRef.current = false;
-        addLog(`PROFIT TARGET reached: $${newPnL.toFixed(2)} >= $${pt.toFixed(2)}`, 'success');
-      } else if (ll && newPnL <= -Math.abs(ll)) {
-        setSessionStopped(true); sessionStoppedRef.current = true;
-        setRunning(false); runningRef.current = false;
-        addLog(`LOSS LIMIT reached: $${newPnL.toFixed(2)} <= -$${Math.abs(ll).toFixed(2)}`, 'error');
-      } else if (mt && newTradeCount >= mt) {
-        setSessionStopped(true); sessionStoppedRef.current = true;
-        setRunning(false); runningRef.current = false;
-        addLog(`MAX TRADES reached: ${newTradeCount}/${mt}`, 'warn');
+        addLog('Session auto-stopped', 'warn');
       }
+
     } else {
+      const entrySpot = poc.entry_spot || poc.entry_tick_display_value;
+      const currentSpot = poc.current_spot_display_value || poc.current_spot;
+      const currentPnL = parseFloat(poc.profit) || 0;
+      const expiryTime = poc.expiry_time;
+      const startTime = poc.date_start;
+      const buyPrice = parseFloat(poc.buy_price);
+
       setOpenContract({
-        id: c.contract_id,
-        type: c.contract_type,
-        buyPrice: parseFloat(c.buy_price),
-        currentPnL: parseFloat(c.profit) || 0,
-        entrySpot: c.entry_spot,
-        currentSpot: c.current_spot,
-        isExpired: c.is_expired,
-        expiryTime: c.expiry_time,
-        startTime: c.date_start,
+        type: poc.contract_type,
+        entrySpot,
+        currentSpot,
+        currentPnL,
+        expiryTime,
+        startTime,
+        buyPrice,
+        contract_id: poc.contract_id,
       });
     }
-  }, [wsSend, addLog]);
+  }, [addLog, winStreak]);
 
-  const handleMessage = useCallback((evt) => {
-    let data;
-    try { data = JSON.parse(evt.data); } catch { return; }
-
-    if (data.error) {
-      addLog(`API Error: ${data.error.message}`, 'error');
-      if (isBuyingRef.current) { setIsBuying(false); isBuyingRef.current = false; }
-      return;
-    }
-
+  const handleMessage = useCallback((data) => {
     if (data.msg_type === 'authorize') {
+      if (data.error) { addLog(`Auth error: ${data.error.message}`, 'error'); setConnStatus('disconnected'); return; }
       setConnStatus('connected');
-      reconnectCount.current = 0;
-      const acct = data.authorize;
-      setBalance(parseFloat(acct.balance));
-      setCurrency(acct.currency || 'USD');
-      addLog(`Authorized: ${acct.loginid} | Balance: ${acct.currency} ${acct.balance}`, 'success');
-      wsSend({ balance: 1, subscribe: 1 });
+      setBalance(data.authorize?.balance);
+      addLog(`Connected as ${data.authorize?.loginid}`, 'success');
       subTicks(symbolRef.current);
-    }
-
-    if (data.msg_type === 'balance') setBalance(parseFloat(data.balance.balance));
-
-    if (data.msg_type === 'tick') {
+      pingRef.current = setInterval(() => wsSend({ ping: 1 }), PING_INTERVAL);
+    } else if (data.msg_type === 'balance') {
+      setBalance(data.balance?.balance);
+    } else if (data.msg_type === 'tick') {
       const tick = data.tick;
-      if (data.subscription && data.subscription.id) tickSubId.current = data.subscription.id;
-      const price = parseFloat(tick.quote);
+      if (!tick) return;
+      tickSubId.current = tick.id;
       setPrices(prev => {
-        const next = [...prev, price];
-        return next.length > MAX_PRICES ? next.slice(-MAX_PRICES) : next;
+        const next = [...prev, parseFloat(tick.quote)];
+        pricesRef.current = next.length > MAX_PRICES ? next.slice(-MAX_PRICES) : next;
+        return pricesRef.current;
       });
-      pricesRef.current = [...pricesRef.current, price];
-      if (pricesRef.current.length > MAX_PRICES) pricesRef.current = pricesRef.current.slice(-MAX_PRICES);
       evalSignal();
-    }
+    } else if (data.msg_type === 'proposal') {
+      if (data.error) {
+        addLog(`Proposal error: ${data.error.message}`, 'error');
+        setIsBuying(false); isBuyingRef.current = false;
+        return;
+      }
+      if (!isBuyingRef.current) return;
+      const proposalId = data.proposal?.id;
+      if (!proposalId) return;
+      wsSend({ buy: proposalId, price: data.proposal.ask_price, subscribe: 1 });
+    } else if (data.msg_type === 'buy') {
+      if (data.error) {
+        addLog(`Buy error: ${data.error.message}`, 'error');
+        setIsBuying(false); isBuyingRef.current = false;
+        return;
+      }
+      const cid = data.buy?.contract_id;
+      contractSubId.current = data.buy?.contract_id;
+      addLog(`Contract ${cid} opened`, 'info');
 
-    if (data.msg_type === 'buy') {
-      addLog(`Contract purchased: ID ${data.buy.contract_id} | Cost: $${parseFloat(data.buy.buy_price).toFixed(2)}`, 'info');
-      wsSend({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 });
-    }
+      contractSafetyTimer.current = setTimeout(() => {
+        if (openContractRef.current) {
+          setOpenContract(null); openContractRef.current = null;
+          setIsBuying(false); isBuyingRef.current = false;
+          addLog('Contract safety timeout — cleared stale contract', 'warn');
+        }
+      }, 120000);
 
-    if (data.msg_type === 'proposal_open_contract') {
-      if (data.subscription) contractSubId.current = data.subscription.id;
+    } else if (data.msg_type === 'proposal_open_contract') {
       handleContractUpdate(data);
-    }
-
-    if (data.msg_type === 'ping') { /* keep alive */ }
+    } else if (data.msg_type === 'forget') {
+      /* ok */
+    } else if (data.msg_type === 'ping') { /* keep alive */ }
   }, [addLog, wsSend, subTicks, evalSignal, handleContractUpdate]);
 
   /* CHANGE 5: Clear all stale state on disconnect to prevent ghost contracts / double-buys */
@@ -2442,33 +2421,33 @@ const App = () => {
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
     setConnStatus('connecting');
     addLog('Connecting...', 'info');
+    reconnectCount.current = 0;
 
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      addLog('WebSocket connected, authorizing...', 'info');
-      ws.send(JSON.stringify({ authorize: token.trim() }));
-      if (pingRef.current) clearInterval(pingRef.current);
-      pingRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
-      }, PING_INTERVAL);
+      wsSend({ authorize: token.trim() });
+      wsSend({ balance: 1, subscribe: 1 });
     };
 
-    ws.onmessage = handleMessage;
+    ws.onmessage = (e) => {
+      try { handleMessage(JSON.parse(e.data)); } catch (err) { /* ignore parse errors */ }
+    };
 
-    ws.onclose = () => {
-      setConnStatus('disconnected');
-      setOpenContract(null);
-      setIsBuying(false); isBuyingRef.current = false;
-      if (pingRef.current) clearInterval(pingRef.current);
-      addLog('WebSocket disconnected', 'warn');
-      if (reconnectCount.current < MAX_RECONNECT && token.trim()) {
-        reconnectCount.current++;
-        const delay = Math.min(1000 * reconnectCount.current, 10000);
-        addLog(`Reconnecting in ${delay / 1000}s (attempt ${reconnectCount.current}/${MAX_RECONNECT})...`, 'info');
-        reconnectTimer.current = setTimeout(() => connect(), delay);
+    ws.onclose = (e) => {
+      if (reconnectCount.current >= MAX_RECONNECT) {
+        setConnStatus('disconnected');
+        addLog('Max reconnect attempts reached', 'error');
+        return;
       }
+      setConnStatus('connecting');
+      reconnectCount.current++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectCount.current), 30000);
+      addLog(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectCount.current})`, 'warn');
+      reconnectTimer.current = setTimeout(() => {
+        if (token.trim()) connect();
+      }, delay);
     };
 
     ws.onerror = () => addLog('WebSocket error', 'error');
@@ -2486,99 +2465,158 @@ const App = () => {
 
   useEffect(() => {
     if (connStatus === 'connected') {
-      setPrices([]); pricesRef.current = [];
-      setSignal({ direction: null, strength: 0, votes: 0, total: 5, components: {}, macdOk: false, atrSpike: false });
       subTicks(symbol);
     }
   }, [symbol, connStatus, subTicks]);
+
+  const clearLogs = useCallback(() => setLogs([]), []);
 
   return (
     <div id="root">
       <header className="app-header">
         <div className="logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 8v4l3 3"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
           </svg>
           <div>
             <div className="logo-text">MarsBot</div>
-            <div className="logo-ver">V4 · {STRATEGY_LABELS[strategy] || strategy}</div>
+            <div className="logo-ver">V4</div>
           </div>
         </div>
         <div className="header-right">
-          <div className={`conn-dot ${connStatus}`} />
-          {balance !== null && <span className="balance-display">{currency} {balance.toFixed(2)}</span>}
+          {balance !== null && <span className="balance-display">${parseFloat(balance).toFixed(2)}</span>}
+          <div className={`conn-dot ${connStatus}`} title={connStatus} />
         </div>
       </header>
-
       <div className="tab-content">
         {tab === 'signal' && (
           <SignalTab
-            cooldownRemain={cooldownRemain} sessionStopped={sessionStopped}
-            profitTarget={profitTarget} sessionPnL={sessionPnL} lossLimit={lossLimit}
-            maxTrades={maxTrades} sessionTrades={sessionTrades} resetSession={resetSession}
-            signal={signal} strategy={strategy} autoMode={autoMode} running={running}
-            connStatus={connStatus} currentStake={currentStake} toggleRunning={toggleRunning}
-            manualTrade={manualTrade} sessionWinRate={sessionWinRate} sessionWins={sessionWins}
-            maxWinStreak={maxWinStreak} priceSpark={priceSpark} prices={prices} symbol={symbol}
-            openContract={openContract} isBuying={isBuying}
+            cooldownRemain={cooldownRemain}
+            sessionStopped={sessionStopped}
+            profitTarget={profitTarget}
+            sessionPnL={sessionPnL}
+            lossLimit={lossLimit}
+            maxTrades={maxTrades}
+            sessionTrades={sessionTrades}
+            resetSession={resetSession}
+            signal={signal}
+            strategy={strategy}
+            autoMode={autoMode}
+            running={running}
+            connStatus={connStatus}
+            currentStake={currentStake}
+            toggleRunning={toggleRunning}
+            manualTrade={manualTrade}
+            sessionWinRate={sessionWinRate}
+            sessionWins={sessionWins}
+            maxWinStreak={maxWinStreak}
+            priceSpark={priceSpark}
+            prices={prices}
+            symbol={symbol}
+            openContract={openContract}
+            isBuying={isBuying}
           />
         )}
         {tab === 'trades' && (
           <TradesTab
-            openContract={openContract} sessionTrades={sessionTrades} sessionWinRate={sessionWinRate}
-            sessionPnL={sessionPnL} sessionWins={sessionWins} bestTrade={bestTrade}
-            worstTrade={worstTrade} resetSession={resetSession} trades={trades}
-            addLog={addLog} symbol={symbol}
+            openContract={openContract}
+            sessionTrades={sessionTrades}
+            sessionWinRate={sessionWinRate}
+            sessionPnL={sessionPnL}
+            sessionWins={sessionWins}
+            bestTrade={bestTrade}
+            worstTrade={worstTrade}
+            resetSession={resetSession}
+            trades={trades}
+            addLog={addLog}
+            symbol={symbol}
           />
         )}
         {tab === 'backtest' && (
           <BacktestTab
-            strategy={strategy} symbol={symbol} prices={prices}
-            backtestResult={backtestResult} btRunning={btRunning} doBacktest={doBacktest}
+            strategy={strategy}
+            symbol={symbol}
+            prices={prices}
+            backtestResult={backtestResult}
+            btRunning={btRunning}
+            doBacktest={doBacktest}
           />
         )}
         {tab === 'settings' && (
           <SettingsTab
-            connStatus={connStatus} token={token} setToken={setToken}
-            connect={connect} disconnect={disconnect}
-            symbol={symbol} setSymbol={setSymbol} durKey={durKey} setDurKey={setDurKey}
-            strategy={strategy} setStrategy={setStrategy} autoMode={autoMode} setAutoMode={setAutoMode}
-            stake={stake} setStake={setStake} mmSystem={mmSystem} setMMSystem={setMMSystem}
-            martiFactor={martiFactor} setMartiFactor={setMartiFactor}
-            dalUnit={dalUnit} setDalUnit={setDalUnit} revMartiMax={revMartiMax} setRevMartiMax={setRevMartiMax}
-            soundOn={soundOn} setSoundOn={setSoundOn}
-            profitTarget={profitTarget} setProfitTarget={setProfitTarget}
-            lossLimit={lossLimit} setLossLimit={setLossLimit}
-            maxTrades={maxTrades} setMaxTrades={setMaxTrades}
-            cooldownLosses={cooldownLosses} setCooldownLosses={setCooldownLosses}
-            cooldownSecs={cooldownSecs} setCooldownSecs={setCooldownSecs}
-            macdGateEnabled={macdGateEnabled} setMacdGateEnabled={setMacdGateEnabled}
-            minStrength={minStrength} setMinStrength={setMinStrength}
+            connStatus={connStatus}
+            token={token}
+            setToken={setToken}
+            connect={connect}
+            disconnect={disconnect}
+            symbol={symbol}
+            setSymbol={setSymbol}
+            durKey={durKey}
+            setDurKey={setDurKey}
+            strategy={strategy}
+            setStrategy={setStrategy}
+            autoMode={autoMode}
+            setAutoMode={setAutoMode}
+            stake={stake}
+            setStake={setStake}
+            mmSystem={mmSystem}
+            setMMSystem={setMMSystem}
+            martiFactor={martiFactor}
+            setMartiFactor={setMartiFactor}
+            dalUnit={dalUnit}
+            setDalUnit={setDalUnit}
+            revMartiMax={revMartiMax}
+            setRevMartiMax={setRevMartiMax}
+            soundOn={soundOn}
+            setSoundOn={setSoundOn}
+            profitTarget={profitTarget}
+            setProfitTarget={setProfitTarget}
+            lossLimit={lossLimit}
+            setLossLimit={setLossLimit}
+            maxTrades={maxTrades}
+            setMaxTrades={setMaxTrades}
+            cooldownLosses={cooldownLosses}
+            setCooldownLosses={setCooldownLosses}
+            cooldownSecs={cooldownSecs}
+            setCooldownSecs={setCooldownSecs}
+            macdGateEnabled={macdGateEnabled}
+            setMacdGateEnabled={setMacdGateEnabled}
+            minStrength={minStrength}
+            setMinStrength={setMinStrength}
           />
         )}
-        {tab === 'logs' && <LogsTab logs={logs} />}
+        {tab === 'logs' && (
+          <LogsTab logs={logs} clearLogs={clearLogs} />
+        )}
       </div>
-
       <nav className="tab-bar">
-        {[
-          { id: 'signal', icon: Icons.signal, label: 'Signal' },
-          { id: 'trades', icon: Icons.trades, label: 'Trades' },
-          { id: 'backtest', icon: Icons.backtest, label: 'Backtest' },
-          { id: 'settings', icon: Icons.settings, label: 'Settings' },
-          { id: 'logs', icon: Icons.logs, label: 'Logs' },
-        ].map(({ id, icon: Icon, label }) => (
-          <button key={id} className={`tab-btn ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
-            <Icon />
-            <span>{label}</span>
-          </button>
-        ))}
+        <button className={`tab-btn ${tab === 'signal' ? 'active' : ''}`} onClick={() => setTab('signal')}>
+          <Icons.signal />
+          Signal
+        </button>
+        <button className={`tab-btn ${tab === 'trades' ? 'active' : ''}`} onClick={() => setTab('trades')}>
+          <Icons.trades />
+          Trades
+        </button>
+        <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>
+          <Icons.backtest />
+          Backtest
+        </button>
+        <button className={`tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>
+          <Icons.settings />
+          Settings
+        </button>
+        <button className={`tab-btn ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>
+          <Icons.logs />
+          Logs
+        </button>
       </nav>
     </div>
   );
 };
 
-ReactDOM.render(<App />, document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
 </script>
 </body>
 </html>
