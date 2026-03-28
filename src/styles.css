@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+body { @apply bg-mars-bg text-mars-text antialiased; }
+.card { @apply rounded-2xl border border-mars-border bg-mars-card/80 backdrop-blur-md shadow-lg; }
+.btn { @apply rounded-xl px-4 py-2 text-sm font-semibold transition active:scale-95; }
+.btn-primary { @apply btn bg-mars-ai text-white hover:bg-blue-500; }
+.btn-success { @apply btn bg-mars-profit text-black hover:bg-green-400; }
+.btn-danger { @apply btn bg-mars-loss text-white hover:bg-red-500; }
+.input { @apply w-full rounded-xl border border-mars-border bg-mars-surface px-3 py-2 text-sm text-mars-text outline-none focus:border-mars-ai; }
