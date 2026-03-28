@@ -56,6 +56,15 @@ export function useMarsBot() {
   const contractSubId = useRef(null);
   const buyingRef = useRef(false);
 
+  // Refs to keep current values accessible inside long-lived WS callbacks
+  const runningRef = useRef(running);
+  const prefsRef = useRef(prefs);
+  const openContractRef = useRef(openContract);
+
+  useEffect(() => { runningRef.current = running; }, [running]);
+  useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+  useEffect(() => { openContractRef.current = openContract; }, [openContract]);
+
   useEffect(() => { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }, [prefs]);
   useEffect(() => { localStorage.setItem(TRADES_KEY, JSON.stringify(trades.slice(0, 200))); }, [trades]);
 
@@ -87,42 +96,45 @@ export function useMarsBot() {
     if (arr.length < 10) return { direction: null, strength: 0, message: 'Analyzing market...' };
     const recent = arr.slice(-10);
     const slope = recent[recent.length - 1] - recent[0];
+    const p = prefsRef.current;
     const strength = Math.min(99, Math.max(35, Math.round(Math.abs(slope) * 10)));
-    const direction = strength >= prefs.minStrength ? (slope >= 0 ? 'CALL' : 'PUT') : null;
+    const direction = strength >= p.minStrength ? (slope >= 0 ? 'CALL' : 'PUT') : null;
     if (!direction) return { direction: null, strength, message: 'Trade skipped (low confidence)' };
-    return { direction, strength, message: prefs.aiMode ? 'Strategy switched by AI Mode' : 'Trade signal ready' };
-  }, [prefs.aiMode, prefs.minStrength]);
+    return { direction, strength, message: p.aiMode ? 'Strategy switched by AI Mode' : 'Trade signal ready' };
+  }, []);
 
   const placeTrade = useCallback((dir) => {
-    if (!wsRef.current || conn !== 'connected' || buyingRef.current) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || buyingRef.current) return;
     buyingRef.current = true;
-    const dur = parseDur(prefs.duration);
+    const p = prefsRef.current;
+    const dur = parseDur(p.duration);
     wsSend({
       buy: 1,
-      price: parseFloat(prefs.stake) || 1,
+      price: parseFloat(p.stake) || 1,
       parameters: {
         contract_type: dir,
-        symbol: prefs.symbol,
+        symbol: p.symbol,
         duration: dur.value,
         duration_unit: dur.unit,
         basis: 'stake',
-        amount: parseFloat(prefs.stake) || 1,
+        amount: parseFloat(p.stake) || 1,
         currency: 'USD',
       },
     });
     pushLog(`Trade executed: ${dir}`);
     toast('Trade executed', 'success');
-  }, [conn, prefs.duration, prefs.stake, prefs.symbol, pushLog, toast, wsSend]);
+  }, [pushLog, toast, wsSend]);
 
   const connect = useCallback(() => {
-    if (!prefs.token.trim()) { toast('Enter API token first', 'warn'); return; }
+    const p = prefsRef.current;
+    if (!p.token.trim()) { toast('Enter API token first', 'warn'); return; }
     if (wsRef.current) wsRef.current.close();
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     setConn('connecting');
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ authorize: prefs.token.trim() }));
+      ws.send(JSON.stringify({ authorize: prefsRef.current.token.trim() }));
       pushLog('Connected, authorizing...');
     };
 
@@ -139,7 +151,7 @@ export function useMarsBot() {
         const b = extractBalance(data.authorize);
         if (b !== null) setBalance(b);
         wsSend({ balance: 1, subscribe: 1 });
-        wsSend({ ticks: prefs.symbol, subscribe: 1 });
+        wsSend({ ticks: prefsRef.current.symbol, subscribe: 1 });
       }
       if (data.msg_type === 'balance') {
         const b = extractBalance(data.balance);
@@ -152,7 +164,9 @@ export function useMarsBot() {
           const next = [...prev, q].slice(-200);
           const s = evaluateSignal(next);
           setSignal(s);
-          if (running && prefs.autoMode && s.direction && !openContract && !buyingRef.current) placeTrade(s.direction);
+          if (runningRef.current && prefsRef.current.autoMode && s.direction && !openContractRef.current && !buyingRef.current) {
+            placeTrade(s.direction);
+          }
           return next;
         });
       }
@@ -173,7 +187,7 @@ export function useMarsBot() {
             profit,
             direction: c.contract_type,
             timestamp: new Date().toLocaleString(),
-            strategy: prefs.strategy,
+            strategy: prefsRef.current.strategy,
           };
           setTrades((prev) => [record, ...prev.filter((t) => t.id !== record.id)].slice(0, 200));
           setOpenContract(null);
@@ -191,7 +205,7 @@ export function useMarsBot() {
       setOpenContract(null);
       pushLog('Disconnected', 'warn');
     };
-  }, [evaluateSignal, extractBalance, openContract, placeTrade, prefs.autoMode, prefs.strategy, prefs.symbol, prefs.token, pushLog, running, toast, wsSend]);
+  }, [evaluateSignal, extractBalance, placeTrade, pushLog, toast, wsSend]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();
