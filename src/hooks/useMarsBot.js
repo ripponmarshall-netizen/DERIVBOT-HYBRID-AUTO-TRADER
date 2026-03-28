@@ -43,7 +43,6 @@ export function useMarsBot() {
   const [balance, setBalance] = useState(null);
   const [prices, setPrices] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [signal, setSignal] = useState({ direction: null, strength: 0, message: 'Analyzing market...' });
   const [trades, setTrades] = useState(() => {
     try { return JSON.parse(localStorage.getItem(TRADES_KEY) || '[]'); } catch { return []; }
   });
@@ -103,6 +102,9 @@ export function useMarsBot() {
     return { direction, strength, message: p.aiMode ? 'Strategy switched by AI Mode' : 'Trade signal ready' };
   }, []);
 
+  // Signal is derived from prices — no separate state needed
+  const signal = useMemo(() => evaluateSignal(prices), [prices, evaluateSignal]);
+
   const placeTrade = useCallback((dir) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || buyingRef.current) return;
     buyingRef.current = true;
@@ -125,6 +127,13 @@ export function useMarsBot() {
     toast('Trade executed', 'success');
   }, [pushLog, toast, wsSend]);
 
+  // Auto-trade: check on every new tick whether to place a trade
+  useEffect(() => {
+    if (!signal.direction || !runningRef.current || !prefsRef.current.autoMode) return;
+    if (openContractRef.current || buyingRef.current) return;
+    placeTrade(signal.direction);
+  }, [prices, signal.direction, placeTrade]);
+
   const connect = useCallback(() => {
     const p = prefsRef.current;
     if (!p.token.trim()) { toast('Enter API token first', 'warn'); return; }
@@ -136,6 +145,11 @@ export function useMarsBot() {
     ws.onopen = () => {
       ws.send(JSON.stringify({ authorize: prefsRef.current.token.trim() }));
       pushLog('Connected, authorizing...');
+    };
+
+    ws.onerror = () => {
+      pushLog('WebSocket error', 'error');
+      toast('Connection error', 'error');
     };
 
     ws.onmessage = (evt) => {
@@ -160,15 +174,7 @@ export function useMarsBot() {
       if (data.msg_type === 'tick') {
         if (data.subscription?.id) tickSubId.current = data.subscription.id;
         const q = parseFloat(data.tick.quote);
-        setPrices((prev) => {
-          const next = [...prev, q].slice(-200);
-          const s = evaluateSignal(next);
-          setSignal(s);
-          if (runningRef.current && prefsRef.current.autoMode && s.direction && !openContractRef.current && !buyingRef.current) {
-            placeTrade(s.direction);
-          }
-          return next;
-        });
+        setPrices((prev) => [...prev, q].slice(-200));
       }
       if (data.msg_type === 'buy') {
         wsSend({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 });
@@ -205,7 +211,7 @@ export function useMarsBot() {
       setOpenContract(null);
       pushLog('Disconnected', 'warn');
     };
-  }, [evaluateSignal, extractBalance, placeTrade, pushLog, toast, wsSend]);
+  }, [extractBalance, pushLog, toast, wsSend]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();

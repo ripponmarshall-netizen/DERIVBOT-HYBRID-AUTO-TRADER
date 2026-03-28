@@ -1,12 +1,15 @@
 const cards = [
+  { id: 'HYBRID', title: 'Hybrid', desc: 'Combined multi-indicator strategy.' },
   { id: 'RSI', title: 'RSI', desc: 'Overbought/oversold momentum filter.' },
   { id: 'MACD', title: 'MACD', desc: 'Trend momentum crossover signal.' },
-  { id: 'AI_ADAPTIVE', title: 'AI Adaptive Mode', desc: 'Simulated dynamic strategy switching.' },
+  { id: 'EMA', title: 'EMA', desc: 'Exponential moving average crossover.' },
+  { id: 'BB', title: 'Bollinger Bands', desc: 'Volatility-based price channel.' },
+  { id: 'AI_ADAPTIVE', title: 'AI Adaptive', desc: 'Simulated dynamic strategy switching.' },
 ];
 
 export default function StrategyPanel({ prefs, updatePref, signal }) {
   return (
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 animate-fadeIn">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 animate-fadeIn">
       {cards.map((c) => {
         const active = prefs.strategy === c.id;
         return (
